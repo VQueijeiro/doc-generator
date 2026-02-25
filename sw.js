@@ -1,4 +1,4 @@
-const CACHE_NAME = 'docgen-v8';
+const CACHE_NAME = 'docgen-v9';
 const ASSETS = ['./', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon-192.svg'];
 
 self.addEventListener('install', (e) => {
