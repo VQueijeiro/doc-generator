@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocGen - Generador de Documentación</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="icon-192.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon-192.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- API Key Modal -->
+    <div class="modal-overlay" id="apiKeyModal">
+        <div class="modal">
+            <div class="modal-icon">🔑</div>
+            <h2>Configurar API Key</h2>
+            <p>Ingresá tu API key de Anthropic para usar la generación con IA. Se guarda localmente en tu navegador.</p>
+            <div class="form-group">
+                <label for="apiKeyInput">API Key</label>
+                <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-...">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" id="saveApiKey">Guardar y validar</button>
+                <button class="btn btn-ghost" id="closeApiKeyModal" style="display:none;">Cancelar</button>
+            </div>
+            <p class="api-status" id="apiStatus"></p>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div class="modal-overlay" id="previewModal">
+        <div class="modal modal-preview">
+            <div class="preview-header">
+                <h2>Vista previa del documento</h2>
+                <div class="preview-actions">
+                    <button class="btn btn-sm" id="copyMarkdown" title="Copiar Markdown">📋 Markdown</button>
+                    <button class="btn btn-sm btn-primary" id="exportPdf" title="Exportar PDF">📄 PDF</button>
+                    <button class="btn btn-icon" id="closePreview">✕</button>
+                </div>
+            </div>
+            <div class="preview-content" id="previewContent"></div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                    <rect width="28" height="28" rx="6" fill="#6C63FF"/>
+                    <path d="M7 8h14M7 12h10M7 16h12M7 20h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>DocGen</span>
+            </div>
+        </div>
+        <div class="header-center">
+            <input type="text" class="doc-title-input" id="docTitle" value="Manual de Usuario" placeholder="Título del documento">
+        </div>
+        <div class="header-right">
+            <button class="btn btn-sm" id="previewBtn" title="Vista previa">👁 Vista previa</button>
+            <button class="btn btn-sm" id="generateAllBtn" title="Generar todo">⚡ Generar todo</button>
+            <button class="btn btn-icon" id="settingsBtn" title="Configuración API">⚙️</button>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="main">
+        <div class="toolbar">
+            <p class="section-count" id="sectionCount">0 secciones</p>
+            <button class="btn btn-primary" id="addSectionBtn">+ Nueva sección</button>
+        </div>
+
+        <div class="sections-container" id="sectionsContainer">
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">📸</div>
+                <h3>Sin secciones todavía</h3>
+                <p>Hacé clic en "Nueva sección" o pegá una imagen con <kbd>Ctrl+V</kbd> para comenzar.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

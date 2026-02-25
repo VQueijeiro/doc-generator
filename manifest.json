@@ -1,0 +1,17 @@
+{
+    "name": "DocGen - Generador de Documentación",
+    "short_name": "DocGen",
+    "description": "Generá manuales de usuario con IA a partir de capturas de pantalla",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0f0f1a",
+    "theme_color": "#1a1a2e",
+    "icons": [
+        {
+            "src": "icon-192.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}
