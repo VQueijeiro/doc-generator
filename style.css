@@ -1067,15 +1067,210 @@ body {
     transform: translateX(-50%) translateY(0);
 }
 
-/* Print styles */
+/* ========== GANTT / CRONOGRAMA ========== */
+.gantt-container {
+    padding: 0;
+}
+.gantt-layout {
+    display: flex;
+    align-items: stretch;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    margin: 0 20px 24px;
+}
+
+/* Left panel: milestone table */
+.gantt-left {
+    flex: 0 0 480px;
+    min-width: 280px;
+    border-right: 2px solid var(--border);
+    display: flex;
+    flex-direction: column;
+}
+.gantt-col-header {
+    display: flex;
+    align-items: center;
+    background: var(--surface-2);
+    border-bottom: 2px solid var(--border);
+    padding: 8px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    gap: 4px;
+}
+.gantt-ch-num   { width: 32px; text-align: center; flex-shrink: 0; }
+.gantt-ch-name  { flex: 1; min-width: 0; }
+.gantt-ch-dates { width: 140px; flex-shrink: 0; text-align: center; }
+.gantt-ch-del   { width: 32px; flex-shrink: 0; }
+
+.milestone-row {
+    display: flex;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--border);
+    padding: 8px 6px;
+    gap: 4px;
+    min-height: 90px;
+}
+.milestone-row:last-child { border-bottom: none; }
+
+.milestone-num {
+    width: 32px;
+    text-align: center;
+    flex-shrink: 0;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding-top: 10px;
+}
+.milestone-editor-cell {
+    flex: 1;
+    min-width: 0;
+}
+/* Compact Quill inside milestone rows */
+.milestone-editor-cell .ql-toolbar.ql-snow {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    padding: 3px 6px;
+    background: var(--surface-2);
+}
+.milestone-editor-cell .ql-container.ql-snow {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    font-size: 13px;
+    min-height: 46px;
+}
+.milestone-editor-cell .ql-editor {
+    min-height: 46px;
+    padding: 6px 8px;
+    font-size: 13px;
+}
+.milestone-editor-cell .ql-editor.ql-blank::before {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.milestone-dates {
+    width: 140px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 4px;
+}
+.gantt-date-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: -2px;
+    display: block;
+}
+.gantt-date-input {
+    width: 100%;
+    font-size: 12px;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    box-sizing: border-box;
+}
+.gantt-date-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.milestone-delete {
+    flex-shrink: 0;
+    align-self: center;
+    color: var(--text-muted);
+}
+.milestone-delete:hover { color: var(--danger); }
+
+/* Right panel: Gantt bars */
+.gantt-right {
+    flex: 1;
+    min-width: 300px;
+    overflow-x: auto;
+    position: relative;
+}
+.gantt-chart-inner {
+    min-width: 100%;
+    width: max-content;
+}
+.gantt-hdr-row {
+    display: flex;
+    background: var(--surface-2);
+    border-bottom: 2px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    min-width: 100%;
+}
+.gantt-hdr-cell {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 8px 2px;
+    border-left: 1px solid var(--border);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    min-width: 40px;
+}
+.gantt-hdr-cell:first-child { border-left: none; }
+
+.gantt-bars { min-width: 100%; }
+.gantt-bar-row {
+    position: relative;
+    height: 90px; /* same as min-height of milestone-row */
+    border-bottom: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+}
+.gantt-bar-row:last-child { border-bottom: none; }
+.gantt-bar {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 28px;
+    background: linear-gradient(135deg, #4472C4 0%, #2d5499 100%);
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(68,114,196,0.35);
+    min-width: 6px;
+}
+
+.gantt-empty {
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Print styles – show only gantt when printing from gantt mode */
 @media print {
-    body { background: #fff; color: #000; }
-    .header, .toolbar, .toast, .modal-overlay, .sidebar, .sidebar-overlay,
-    .section-card, .generate-btn, .btn, .minuta-panel { display: none !important; }
+    body { background: #fff; color: #000; padding-left: 0 !important; }
+    .header, .sidebar, .sidebar-overlay, .toast, .modal-overlay,
+    .toolbar, .btn, .minuta-panel, .milestone-delete,
+    .sections-container, #emptyState,
+    .ql-toolbar { display: none !important; }
+    .gantt-container { display: block !important; }
+    .gantt-layout { border: none; margin: 0; }
+    .gantt-left { flex: 0 0 45%; }
+    .gantt-bar { background: #4472C4 !important; }
     .preview-content { padding: 0; }
     .preview-content h1 { color: #000; border-color: #333; }
     .preview-section h2 { color: #333; }
     .preview-section img { border-color: #ccc; }
+    /* Quill content still visible */
+    .milestone-editor-cell .ql-container.ql-snow { border: none; }
+    .milestone-editor-cell .ql-editor { padding: 0; }
 }
 
 /* Responsive – mobile: revert sidebar to hamburger overlay */
@@ -1101,4 +1296,8 @@ body {
     .preview-header { flex-wrap: wrap; gap: 8px; }
     .doc-type-cards-3 { grid-template-columns: 1fr; }
     .minuta-row { flex-direction: column; }
+
+    .gantt-layout { flex-direction: column; }
+    .gantt-left  { flex: none; border-right: none; border-bottom: 2px solid var(--border); }
+    .gantt-right { min-height: 200px; }
 }

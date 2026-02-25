@@ -7,9 +7,10 @@ const CLIENTS_KEY  = 'docgen_clients';
 const THEME_KEY    = 'docgen_theme';
 
 const DOC_TYPES = {
-    manual:     { label: 'Manual de Uso',      icon: '📘', defaultTitle: 'Manual de Usuario' },
-    desarrollo: { label: 'Doc. de Desarrollo', icon: '⚙️', defaultTitle: 'Documento de Desarrollo' },
-    minuta:     { label: 'Minuta de Reunión',  icon: '📋', defaultTitle: 'Minuta de Reunión' }
+    manual:      { label: 'Manual de Uso',      icon: '📘', defaultTitle: 'Manual de Usuario' },
+    desarrollo:  { label: 'Doc. de Desarrollo', icon: '⚙️', defaultTitle: 'Documento de Desarrollo' },
+    minuta:      { label: 'Minuta de Reunión',  icon: '📋', defaultTitle: 'Minuta de Reunión' },
+    cronograma:  { label: 'Cronograma',         icon: '📅', defaultTitle: 'Cronograma de Proyecto' }
 };
 
 let manuals          = [];
@@ -224,6 +225,10 @@ function setupEventListeners() {
 
     // Global paste → image
     document.addEventListener('paste', handleGlobalPaste);
+
+    // Gantt / Cronograma
+    $('#addMilestoneBtn').addEventListener('click', addMilestone);
+    $('#exportGanttPdfBtn').addEventListener('click', exportGanttPdf);
 }
 
 // ========== DELEGATED SECTION CLICK ==========
@@ -297,6 +302,7 @@ function createNewManual(docType, switchTo) {
         title:        type.defaultTitle,
         docType,
         sections:     [],
+        milestones:   [],
         createdAt:    Date.now(),
         updatedAt:    Date.now(),
         minutaClient: '',
@@ -316,6 +322,7 @@ function loadManual(id) {
     docTitle.value = manual.title;
     updateDocTypeBadge();
     updateMinutaPanel();
+    updateGanttPanel();
     localStorage.setItem(CURRENT_KEY, id);
 }
 
@@ -576,6 +583,7 @@ function removeImage(idx, sectionId, manual) {
 // Creates cards only for new sections, removes cards for deleted ones,
 // and reorders existing cards – preserving Quill instances throughout.
 function renderSections() {
+    if (isGanttMode()) return;
     const sections = getCurrentSections();
 
     // Map existing rendered cards by sectionId
@@ -887,6 +895,13 @@ function saveMeta() {
                 imageType: s.imageType || null,
                 html:      s.html      || '',
                 text:      s.text      || ''
+            })),
+            milestones: (m.milestones || []).map(ms => ({
+                id:   ms.id,
+                html: ms.html || '',
+                text: ms.text || '',
+                from: ms.from || '',
+                to:   ms.to   || ''
             }))
         }));
         localStorage.setItem(MANUALS_KEY, JSON.stringify(data));
@@ -923,6 +938,7 @@ function loadState() {
             if (!m.docType)                  m.docType      = 'manual';
             if (m.minutaClient === undefined) m.minutaClient = '';
             if (m.minutaDate   === undefined) m.minutaDate   = '';
+            if (!m.milestones)               m.milestones   = [];
         });
 
         currentManualId = localStorage.getItem(CURRENT_KEY);
@@ -1246,4 +1262,284 @@ function getImageDimensions(dataUrl) {
         img.onerror = () => resolve({ width: 400, height: 300 });
         img.src = dataUrl;
     });
+}
+
+// ========== GANTT / CRONOGRAMA ==========
+function isGanttMode() {
+    const m = getCurrentManual();
+    return !!(m && m.docType === 'cronograma');
+}
+
+function updateGanttPanel() {
+    const isGantt = isGanttMode();
+    const manual  = getCurrentManual();
+
+    const secToolbar = $('#sectionsToolbar');
+    if (secToolbar) secToolbar.style.display = isGantt ? 'none' : '';
+    sectionsContainer.style.display = isGantt ? 'none' : '';
+    emptyState.style.display = 'none'; // each mode manages its own empty states
+
+    const gc = $('#ganttContainer');
+    if (gc) gc.style.display = isGantt ? '' : 'none';
+
+    if (!isGantt) {
+        // Restore sections display
+        updateSectionCount();
+        const sections = getCurrentSections();
+        if (!sections.length) emptyState.style.display = '';
+        return;
+    }
+
+    if (!manual.milestones) manual.milestones = [];
+    renderGanttMilestones();
+    renderGanttChart();
+    updateMilestoneCount();
+}
+
+function updateMilestoneCount() {
+    const manual = getCurrentManual();
+    const count = manual?.milestones?.length || 0;
+    const el = $('#milestoneCount');
+    if (el) el.textContent = count === 1 ? '1 hito' : `${count} hitos`;
+}
+
+function addMilestone() {
+    const manual = getCurrentManual();
+    if (!manual) return;
+    if (!manual.milestones) manual.milestones = [];
+
+    const today    = new Date();
+    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const fmt = d => d.toISOString().slice(0, 10);
+
+    const milestone = {
+        id:   Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        html: '',
+        text: '',
+        from: fmt(today),
+        to:   fmt(nextWeek)
+    };
+    manual.milestones.push(milestone);
+    manual.updatedAt = Date.now();
+
+    const container = $('#ganttMilestones');
+    if (container) {
+        const row = createMilestoneRow(milestone, manual.milestones.length);
+        container.appendChild(row);
+        initMilestoneQuill(milestone);
+        setTimeout(() => row.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+    }
+
+    renderGanttChart();
+    updateMilestoneCount();
+    saveMeta();
+}
+
+function removeMilestone(id) {
+    const manual = getCurrentManual();
+    if (!manual || !manual.milestones) return;
+    const idx = manual.milestones.findIndex(m => m.id === id);
+    if (idx === -1) return;
+
+    delete quillInstances[`editor-g-${id}`];
+    const row = document.querySelector(`.milestone-row[data-id="${id}"]`);
+    if (row) row.remove();
+
+    manual.milestones.splice(idx, 1);
+    manual.updatedAt = Date.now();
+
+    // Renumber remaining rows
+    document.querySelectorAll('#ganttMilestones .milestone-row').forEach((r, i) => {
+        const numEl = r.querySelector('.milestone-num');
+        if (numEl) numEl.textContent = i + 1;
+    });
+
+    renderGanttChart();
+    updateMilestoneCount();
+    saveMeta();
+}
+
+function createMilestoneRow(milestone, num) {
+    const row = document.createElement('div');
+    row.className = 'milestone-row';
+    row.dataset.id = milestone.id;
+
+    row.innerHTML = `
+        <div class="milestone-num">${num}</div>
+        <div class="milestone-editor-cell">
+            <div id="editor-g-${milestone.id}" class="milestone-quill-wrap"></div>
+        </div>
+        <div class="milestone-dates">
+            <label class="gantt-date-label">Desde</label>
+            <input type="date" class="gantt-date-input milestone-from" value="${milestone.from || ''}">
+            <label class="gantt-date-label">Hasta</label>
+            <input type="date" class="gantt-date-input milestone-to" value="${milestone.to || ''}">
+        </div>
+        <button class="btn-icon milestone-delete" title="Eliminar hito">✕</button>
+    `;
+
+    row.querySelector('.milestone-from').addEventListener('change', (e) => {
+        milestone.from = e.target.value;
+        const m = getCurrentManual();
+        if (m) m.updatedAt = Date.now();
+        renderGanttChart();
+        scheduleSave();
+    });
+    row.querySelector('.milestone-to').addEventListener('change', (e) => {
+        milestone.to = e.target.value;
+        const m = getCurrentManual();
+        if (m) m.updatedAt = Date.now();
+        renderGanttChart();
+        scheduleSave();
+    });
+    row.querySelector('.milestone-delete').addEventListener('click', () => removeMilestone(milestone.id));
+
+    return row;
+}
+
+function initMilestoneQuill(milestone) {
+    const editorId = `editor-g-${milestone.id}`;
+    if (quillInstances[editorId]) return;
+    const container = document.getElementById(editorId);
+    if (!container) return;
+
+    const q = new Quill(container, {
+        theme: 'snow',
+        placeholder: 'Nombre del hito...',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline'],
+                [{ color: [] }],
+                ['clean']
+            ]
+        }
+    });
+
+    if (milestone.html) q.root.innerHTML = milestone.html;
+
+    q.on('text-change', () => {
+        milestone.html = q.root.innerHTML;
+        milestone.text = q.getText().trim();
+        const manual = getCurrentManual();
+        if (manual) manual.updatedAt = Date.now();
+        scheduleSave();
+    });
+
+    quillInstances[editorId] = q;
+}
+
+function renderGanttMilestones() {
+    const manual    = getCurrentManual();
+    const container = $('#ganttMilestones');
+    if (!container) return;
+
+    const milestones = manual?.milestones || [];
+
+    const existing = new Map();
+    container.querySelectorAll('.milestone-row').forEach(r => existing.set(r.dataset.id, r));
+
+    const activeIds = new Set(milestones.map(m => m.id));
+    existing.forEach((row, id) => {
+        if (!activeIds.has(id)) { delete quillInstances[`editor-g-${id}`]; row.remove(); }
+    });
+
+    milestones.forEach((m, i) => {
+        let row = existing.get(m.id);
+        if (!row) {
+            row = createMilestoneRow(m, i + 1);
+            container.appendChild(row);
+            initMilestoneQuill(m);
+        } else {
+            const numEl = row.querySelector('.milestone-num');
+            if (numEl) numEl.textContent = i + 1;
+            // Sync date inputs if changed externally
+            const fi = row.querySelector('.milestone-from');
+            const ti = row.querySelector('.milestone-to');
+            if (fi && fi.value !== m.from) fi.value = m.from || '';
+            if (ti && ti.value !== m.to)   ti.value = m.to   || '';
+        }
+        container.appendChild(row); // reorder
+    });
+
+    updateMilestoneCount();
+}
+
+function renderGanttChart() {
+    const manual  = getCurrentManual();
+    const chartEl = $('#ganttRight');
+    if (!chartEl) return;
+
+    const milestones = manual?.milestones || [];
+    const withDates  = milestones.filter(m => m.from && m.to && m.from <= m.to);
+
+    if (!withDates.length) {
+        chartEl.innerHTML = '<div class="gantt-empty">Agregá hitos con fechas para ver el diagrama.</div>';
+        return;
+    }
+
+    // Overall date range
+    const allDates  = withDates.flatMap(m => [new Date(m.from), new Date(m.to)]);
+    const minDate   = new Date(Math.min(...allDates));
+    const maxDate   = new Date(Math.max(...allDates));
+
+    // Snap start to Monday of minDate's week
+    const startDate = new Date(minDate);
+    const dow = startDate.getDay();
+    startDate.setDate(startDate.getDate() - (dow === 0 ? 6 : dow - 1));
+
+    // Snap end to Sunday of maxDate's week
+    const endDate = new Date(maxDate);
+    const edow = endDate.getDay();
+    if (edow !== 0) endDate.setDate(endDate.getDate() + (7 - edow));
+
+    const totalDays = Math.max(1, Math.round((endDate - startDate) / 864e5));
+    const useMonths = totalDays > 84; // > 12 weeks → switch to monthly
+
+    // Build periods
+    const periods = [];
+    if (useMonths) {
+        const d = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+        while (d <= endDate) {
+            const pStart = new Date(Math.max(d, startDate));
+            const pEnd   = new Date(Math.min(new Date(d.getFullYear(), d.getMonth() + 1, 0), endDate));
+            periods.push({ label: d.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' }), start: pStart, end: pEnd });
+            d.setMonth(d.getMonth() + 1);
+        }
+    } else {
+        const d = new Date(startDate);
+        while (d <= endDate) {
+            const pStart = new Date(d);
+            const pEnd   = new Date(Math.min(new Date(d.getTime() + 6 * 864e5), endDate));
+            periods.push({ label: d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }), start: pStart, end: pEnd });
+            d.setDate(d.getDate() + 7);
+        }
+    }
+
+    const pct = (d) => Math.round((d - startDate) / (864e5 * totalDays) * 1000) / 10;
+
+    // Header
+    const headerCells = periods.map(p => {
+        const w = Math.round(((p.end - p.start) / 864e5 + 1) / totalDays * 1000) / 10;
+        return `<div class="gantt-hdr-cell" style="width:${w}%">${p.label}</div>`;
+    }).join('');
+
+    // Bar rows – one per milestone (including those without dates = empty row for alignment)
+    const barRows = milestones.map(m => {
+        if (!m.from || !m.to || m.from > m.to) return '<div class="gantt-bar-row"></div>';
+        const left  = Math.max(0, pct(new Date(m.from)));
+        const right = Math.min(100, pct(new Date(m.to)) + (1 / totalDays * 100));
+        const width = Math.max(0.5, right - left);
+        return `<div class="gantt-bar-row"><div class="gantt-bar" style="left:${left}%;width:${width}%"></div></div>`;
+    }).join('');
+
+    chartEl.innerHTML = `
+        <div class="gantt-chart-inner">
+            <div class="gantt-hdr-row">${headerCells}</div>
+            <div class="gantt-bars">${barRows}</div>
+        </div>
+    `;
+}
+
+function exportGanttPdf() {
+    window.print();
 }

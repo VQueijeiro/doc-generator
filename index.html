@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="icon-192.svg">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=12">
+    <link rel="stylesheet" href="style.css?v=13">
     <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@8.2.4/build/index.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
@@ -41,7 +41,7 @@
             <div class="modal-icon">📝</div>
             <h2>Nuevo documento</h2>
             <p>Seleccioná el tipo de documento que vas a crear.</p>
-            <div class="doc-type-cards doc-type-cards-3">
+            <div class="doc-type-cards">
                 <div class="doc-type-card" data-type="manual">
                     <div class="doc-type-icon">📘</div>
                     <div class="doc-type-name">Manual de Uso</div>
@@ -56,6 +56,11 @@
                     <div class="doc-type-icon">📋</div>
                     <div class="doc-type-name">Minuta de Reunión</div>
                     <div class="doc-type-desc">Registro de reunión con cliente, asistentes, temas tratados y acuerdos.</div>
+                </div>
+                <div class="doc-type-card" data-type="cronograma">
+                    <div class="doc-type-icon">📅</div>
+                    <div class="doc-type-name">Cronograma / Gantt</div>
+                    <div class="doc-type-desc">Planificación de hitos con fechas de inicio, fin y diagrama Gantt exportable a PDF.</div>
                 </div>
             </div>
             <div class="modal-actions" style="margin-top:16px;">
@@ -205,7 +210,7 @@
             </div>
         </div>
 
-        <div class="toolbar">
+        <div class="toolbar" id="sectionsToolbar">
             <p class="section-count" id="sectionCount">0 secciones</p>
             <button class="btn btn-primary" id="addSectionBtn">+ Nueva sección</button>
         </div>
@@ -217,10 +222,33 @@
                 <p>Hacé clic en "Nueva sección" o pegá una imagen con <kbd>Ctrl+V</kbd> para comenzar.</p>
             </div>
         </div>
+
+        <!-- Gantt / Cronograma -->
+        <div class="gantt-container" id="ganttContainer" style="display:none;">
+            <div class="toolbar">
+                <p class="section-count" id="milestoneCount">0 hitos</p>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button class="btn btn-sm" id="exportGanttPdfBtn">📄 Exportar PDF</button>
+                    <button class="btn btn-primary" id="addMilestoneBtn">+ Agregar hito</button>
+                </div>
+            </div>
+            <div class="gantt-layout">
+                <div class="gantt-left" id="ganttLeft">
+                    <div class="gantt-col-header">
+                        <span class="gantt-ch-num">#</span>
+                        <span class="gantt-ch-name">Nombre del hito</span>
+                        <span class="gantt-ch-dates">Desde / Hasta</span>
+                        <span class="gantt-ch-del"></span>
+                    </div>
+                    <div id="ganttMilestones"></div>
+                </div>
+                <div class="gantt-right" id="ganttRight"></div>
+            </div>
+        </div>
     </main>
 
     <div class="toast" id="toast"></div>
 
-    <script src="app.js?v=11"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>
