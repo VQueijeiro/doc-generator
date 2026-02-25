@@ -341,6 +341,12 @@ async function exportToWord() {
         return;
     }
 
+    if (!window.docx) {
+        toast('Error: la librería docx no se cargó. Recargá la página.');
+        console.error('window.docx is undefined. Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('doc')));
+        return;
+    }
+
     toast('Generando documento Word...');
 
     try {
