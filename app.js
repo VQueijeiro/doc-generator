@@ -352,7 +352,8 @@ async function exportToWord() {
     try {
         const { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel,
                 Header, Footer, PageNumber, NumberFormat, AlignmentType,
-                BorderStyle, PageBreak } = window.docx;
+                BorderStyle, PageBreak, Bookmark, InternalHyperlink,
+                TableOfContents } = window.docx;
 
         // Prepare header children
         const headerChildren = [];
@@ -462,21 +463,39 @@ async function exportToWord() {
         // Page break after title
         docChildren.push(new Paragraph({ children: [new PageBreak()] }));
 
-        // Table of Contents (simple)
+        // Table of Contents - title
         docChildren.push(new Paragraph({
-            children: [new TextRun({ text: 'Índice', bold: true, size: 32, color: '2B2B7B' })],
-            spacing: { after: 300 }
+            children: [new TextRun({ text: 'Índice de Contenidos', bold: true, size: 32, color: '2B2B7B' })],
+            spacing: { after: 300 },
+            border: {
+                bottom: { style: BorderStyle.SINGLE, size: 2, color: '2B2B7B' }
+            }
         }));
 
+        // Auto-generated TOC field (Word will populate with page numbers)
+        docChildren.push(new TableOfContents("Índice", {
+            hyperlink: true,
+            headingStyleRange: "1-2",
+        }));
+
+        // Manual TOC entries with internal hyperlinks (visible before updating in Word)
         sections.forEach((s, i) => {
             const title = s.title || `Sección ${i + 1}`;
+            const anchorId = `section_${i}`;
             docChildren.push(new Paragraph({
-                children: [new TextRun({
-                    text: `${i + 1}. ${title}`,
-                    size: 22,
-                    color: '333333'
-                })],
-                spacing: { before: 80 }
+                children: [
+                    new InternalHyperlink({
+                        anchor: anchorId,
+                        children: [
+                            new TextRun({
+                                text: `${i + 1}. ${title}`,
+                                style: 'Hyperlink',
+                                size: 22,
+                            })
+                        ]
+                    })
+                ],
+                spacing: { before: 100, after: 40 }
             }));
         });
 
@@ -487,14 +506,22 @@ async function exportToWord() {
             const s = sections[i];
             const title = s.title || `Sección ${i + 1}`;
 
-            // Section heading
+            // Section heading with bookmark anchor
+            const anchorId = `section_${i}`;
             docChildren.push(new Paragraph({
-                children: [new TextRun({
-                    text: `${i + 1}. ${title}`,
-                    bold: true,
-                    size: 28,
-                    color: '2B2B7B'
-                })],
+                children: [
+                    new Bookmark({
+                        id: anchorId,
+                        children: [
+                            new TextRun({
+                                text: `${i + 1}. ${title}`,
+                                bold: true,
+                                size: 28,
+                                color: '2B2B7B'
+                            })
+                        ]
+                    })
+                ],
                 heading: HeadingLevel.HEADING_1,
                 spacing: { before: 400, after: 200 },
                 border: {
@@ -551,6 +578,9 @@ async function exportToWord() {
         }
 
         const doc = new Document({
+            features: {
+                updateFields: true
+            },
             styles: {
                 default: {
                     document: {
