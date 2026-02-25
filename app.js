@@ -506,7 +506,7 @@ async function exportToWord() {
         const { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel,
                 Header, Footer, PageNumber, AlignmentType,
                 BorderStyle, PageBreak, Bookmark, InternalHyperlink,
-                TableOfContents, Table, TableRow, TableCell, WidthType, VerticalAlign } = window.docx;
+                TableOfContents, Table, TableRow, TableCell, WidthType } = window.docx;
 
         const tmpl = getTemplateForCurrent();
         const headerChildren = [];
@@ -558,22 +558,27 @@ async function exportToWord() {
         const cBorder = { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' };
         const cBorders = { top: cBorder, bottom: cBorder, left: cBorder, right: cBorder };
 
+        // Simple 2-col table (no rowSpan/columnSpan for Word 2010 compatibility)
+        const versionAuthorRuns = [
+            new TextRun({ text: `Versión ${docVersion}`, size: 20, color: '333333' }),
+        ];
+        if (authorName) {
+            versionAuthorRuns.push(new TextRun({ text: `    ${authorName}`, size: 20, color: '333333', bold: true }));
+        }
+        versionAuthorRuns.push(new TextRun({ text: `    (${creationDate})`, size: 18, color: '888888' }));
+
         const titleTable = new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
+            width: { size: 9000, type: WidthType.DXA },
             rows: [
                 new TableRow({
                     children: [
                         new TableCell({
-                            rowSpan: 2,
-                            width: { size: 30, type: WidthType.PERCENTAGE },
+                            width: { size: 2700, type: WidthType.DXA },
                             children: logoCellChildren,
-                            verticalAlign: VerticalAlign.CENTER,
                             borders: cBorders,
                         }),
                         new TableCell({
-                            columnSpan: 2,
-                            children: [new Paragraph({ children: [new TextRun({ text: (docTitle.value || 'Documento').toUpperCase(), bold: true, size: 24, color: '002366' })], alignment: AlignmentType.LEFT })],
-                            verticalAlign: VerticalAlign.CENTER,
+                            children: [new Paragraph({ children: [new TextRun({ text: (docTitle.value || 'Documento').toUpperCase(), bold: true, size: 26, color: '002366' })], alignment: AlignmentType.LEFT })],
                             borders: cBorders,
                         }),
                     ]
@@ -581,14 +586,12 @@ async function exportToWord() {
                 new TableRow({
                     children: [
                         new TableCell({
-                            children: [new Paragraph({ children: [new TextRun({ text: `Versión ${docVersion}`, size: 20, color: '333333' })] })],
+                            width: { size: 2700, type: WidthType.DXA },
+                            children: [new Paragraph({ children: [new TextRun({ text: '' })] })],
                             borders: cBorders,
                         }),
                         new TableCell({
-                            children: [
-                                new Paragraph({ children: [new TextRun({ text: authorName || '', size: 20, color: '333333' })] }),
-                                new Paragraph({ children: [new TextRun({ text: `(${creationDate})`, size: 18, color: '666666' })] }),
-                            ],
+                            children: [new Paragraph({ children: versionAuthorRuns })],
                             borders: cBorders,
                         }),
                     ]
