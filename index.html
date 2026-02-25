@@ -14,6 +14,28 @@
     <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 </head>
 <body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+                    <rect width="28" height="28" rx="6" fill="#6C63FF"/>
+                    <path d="M7 8h14M7 12h10M7 16h12M7 20h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>DocGen</span>
+            </div>
+            <button class="btn-icon sidebar-close" id="sidebarClose" title="Cerrar sidebar">✕</button>
+        </div>
+        <button class="sidebar-new-btn" id="newManualBtn">+ Nuevo manual</button>
+        <div class="sidebar-label">Tus manuales</div>
+        <div class="sidebar-list" id="sidebarList">
+            <!-- Manual items rendered by JS -->
+        </div>
+    </aside>
+
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <!-- Template Config Modal -->
     <div class="modal-overlay" id="templateModal">
         <div class="modal modal-template">
@@ -55,6 +77,19 @@
         </div>
     </div>
 
+    <!-- Delete Confirm Modal -->
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal">
+            <div class="modal-icon">🗑</div>
+            <h2>Eliminar manual</h2>
+            <p id="deleteModalText">¿Estás seguro de que querés eliminar este manual?</p>
+            <div class="modal-actions">
+                <button class="btn btn-danger" id="confirmDelete">Eliminar</button>
+                <button class="btn btn-ghost" id="cancelDelete">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Preview Modal -->
     <div class="modal-overlay" id="previewModal">
         <div class="modal modal-preview">
@@ -73,8 +108,9 @@
     <!-- Header -->
     <header class="header">
         <div class="header-left">
-            <div class="logo">
-                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <button class="btn-icon sidebar-toggle" id="sidebarToggle" title="Abrir historial">☰</button>
+            <div class="logo logo-header">
+                <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
                     <rect width="28" height="28" rx="6" fill="#6C63FF"/>
                     <path d="M7 8h14M7 12h10M7 16h12M7 20h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
                 </svg>
@@ -92,7 +128,7 @@
     </header>
 
     <!-- Main -->
-    <main class="main">
+    <main class="main" id="mainContent">
         <div class="toolbar">
             <p class="section-count" id="sectionCount">0 secciones</p>
             <button class="btn btn-primary" id="addSectionBtn">+ Nueva sección</button>
