@@ -21,6 +21,13 @@ const docTitle = $('#docTitle');
 
 // ========== INIT ==========
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize theme
+    const savedTheme = localStorage.getItem('docgen_theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
     loadState();
     if (manuals.length === 0) createNewManual('manual', false);
     loadManual(currentManualId || manuals[0].id);
@@ -46,6 +53,28 @@ function setupEventListeners() {
             createNewManual(type, true);
             closeSidebar();
         });
+    });
+
+    // Theme toggle
+    const themeToggle = $('#themeToggle');
+    const themeIcon = $('#themeIcon');
+    if (document.documentElement.getAttribute('data-theme') === 'dark') {
+        themeToggle.classList.add('active');
+        themeIcon.textContent = '🌙';
+    }
+    themeToggle.addEventListener('click', () => {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        if (isDark) {
+            document.documentElement.removeAttribute('data-theme');
+            themeToggle.classList.remove('active');
+            themeIcon.textContent = '☀️';
+            localStorage.setItem('docgen_theme', 'light');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            themeToggle.classList.add('active');
+            themeIcon.textContent = '🌙';
+            localStorage.setItem('docgen_theme', 'dark');
+        }
     });
 
     $('#addSectionBtn').addEventListener('click', addSection);
@@ -198,7 +227,7 @@ function confirmDeleteManual() {
 
 // ========== TEMPLATE (per doc type) ==========
 function getDefaultTemplate() {
-    return { logo: null, companyName: '', subtitle: '', footerText: '' };
+    return { logo: null, companyName: '', authorName: '', version: '1', subtitle: '', footerText: '' };
 }
 
 function getTemplateForCurrent() {
@@ -224,6 +253,8 @@ function loadLogo(file) {
 function openTemplateModal() {
     const tmpl = getTemplateForCurrent();
     $('#companyName').value = tmpl.companyName || '';
+    $('#authorName').value = tmpl.authorName || '';
+    $('#docVersion').value = tmpl.version || '1';
     $('#docSubtitle').value = tmpl.subtitle || '';
     $('#footerText').value = tmpl.footerText || '';
     if (tmpl.logo) {
@@ -242,6 +273,8 @@ function openTemplateModal() {
 function saveTemplate() {
     const tmpl = getTemplateForCurrent();
     tmpl.companyName = $('#companyName').value.trim();
+    tmpl.authorName = $('#authorName').value.trim();
+    tmpl.version = $('#docVersion').value.trim() || '1';
     tmpl.subtitle = $('#docSubtitle').value.trim();
     tmpl.footerText = $('#footerText').value.trim();
     localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
@@ -473,7 +506,7 @@ async function exportToWord() {
         const { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel,
                 Header, Footer, PageNumber, AlignmentType,
                 BorderStyle, PageBreak, Bookmark, InternalHyperlink,
-                TableOfContents } = window.docx;
+                TableOfContents, Table, TableRow, TableCell, WidthType, VerticalAlign } = window.docx;
 
         const tmpl = getTemplateForCurrent();
         const headerChildren = [];
@@ -502,16 +535,75 @@ async function exportToWord() {
 
         const docChildren = [];
 
-        // Title page
-        docChildren.push(new Paragraph({ spacing: { before: 3000 } }));
-        docChildren.push(new Paragraph({ children: [new TextRun({ text: docTitle.value || 'Documento', bold: true, size: 56, color: '2B2B7B' })], alignment: AlignmentType.CENTER }));
+        // Title page - header table (estilo portada con logo, título, versión, autor)
+        const manual = getCurrentManual();
+        const creationDate = new Date(manual.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const docVersion = tmpl.version || '1';
+        const authorName = tmpl.authorName || '';
+
+        const logoCellChildren = [];
+        if (tmpl.logo) {
+            try {
+                const logoDataForTable = await dataUrlToArrayBuffer(tmpl.logo);
+                logoCellChildren.push(new Paragraph({ children: [new ImageRun({ data: logoDataForTable, transformation: { width: 100, height: 35 }, type: 'png' })], alignment: AlignmentType.CENTER }));
+            } catch(e) { console.warn('Logo table error:', e); }
+        }
+        if (tmpl.companyName) {
+            logoCellChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.companyName, bold: true, size: 22, color: '002366' })], alignment: AlignmentType.CENTER, spacing: { before: 40 } }));
+        }
+        if (logoCellChildren.length === 0) {
+            logoCellChildren.push(new Paragraph({ children: [new TextRun({ text: ' ' })] }));
+        }
+
+        const cBorder = { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' };
+        const cBorders = { top: cBorder, bottom: cBorder, left: cBorder, right: cBorder };
+
+        const titleTable = new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+                new TableRow({
+                    children: [
+                        new TableCell({
+                            rowSpan: 2,
+                            width: { size: 30, type: WidthType.PERCENTAGE },
+                            children: logoCellChildren,
+                            verticalAlign: VerticalAlign.CENTER,
+                            borders: cBorders,
+                        }),
+                        new TableCell({
+                            columnSpan: 2,
+                            children: [new Paragraph({ children: [new TextRun({ text: (docTitle.value || 'Documento').toUpperCase(), bold: true, size: 24, color: '002366' })], alignment: AlignmentType.LEFT })],
+                            verticalAlign: VerticalAlign.CENTER,
+                            borders: cBorders,
+                        }),
+                    ]
+                }),
+                new TableRow({
+                    children: [
+                        new TableCell({
+                            children: [new Paragraph({ children: [new TextRun({ text: `Versión ${docVersion}`, size: 20, color: '333333' })] })],
+                            borders: cBorders,
+                        }),
+                        new TableCell({
+                            children: [
+                                new Paragraph({ children: [new TextRun({ text: authorName || '', size: 20, color: '333333' })] }),
+                                new Paragraph({ children: [new TextRun({ text: `(${creationDate})`, size: 18, color: '666666' })] }),
+                            ],
+                            borders: cBorders,
+                        }),
+                    ]
+                }),
+            ]
+        });
+
+        docChildren.push(titleTable);
+        docChildren.push(new Paragraph({ spacing: { before: 2000 } }));
+        docChildren.push(new Paragraph({ children: [new TextRun({ text: docTitle.value || 'Documento', bold: true, size: 56, color: '002366' })], alignment: AlignmentType.CENTER }));
         if (tmpl.subtitle) docChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.subtitle, size: 28, color: '666666' })], alignment: AlignmentType.CENTER, spacing: { before: 200 } }));
-        if (tmpl.companyName) docChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.companyName, size: 24, color: '999999' })], alignment: AlignmentType.CENTER, spacing: { before: 400 } }));
-        docChildren.push(new Paragraph({ children: [new TextRun({ text: new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' }), size: 20, color: '999999' })], alignment: AlignmentType.CENTER, spacing: { before: 200 } }));
         docChildren.push(new Paragraph({ children: [new PageBreak()] }));
 
         // TOC
-        docChildren.push(new Paragraph({ children: [new TextRun({ text: 'Índice de Contenidos', bold: true, size: 32, color: '2B2B7B' })], spacing: { after: 300 }, border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: '2B2B7B' } } }));
+        docChildren.push(new Paragraph({ children: [new TextRun({ text: 'Índice de Contenidos', bold: true, size: 32, color: '002366' })], spacing: { after: 300 }, border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: '002366' } } }));
         docChildren.push(new TableOfContents("Índice", { hyperlink: true, headingStyleRange: "1-2" }));
         sections.forEach((s, i) => {
             const title = s.title || `Sección ${i + 1}`;
@@ -523,7 +615,7 @@ async function exportToWord() {
         for (let i = 0; i < sections.length; i++) {
             const s = sections[i];
             const title = s.title || `Sección ${i + 1}`;
-            docChildren.push(new Paragraph({ children: [new Bookmark({ id: `section_${i}`, children: [new TextRun({ text: `${i + 1}. ${title}`, bold: true, size: 28, color: '2B2B7B' })] })], heading: HeadingLevel.HEADING_1, spacing: { before: 400, after: 200 }, border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: '2B2B7B' } } }));
+            docChildren.push(new Paragraph({ children: [new Bookmark({ id: `section_${i}`, children: [new TextRun({ text: `${i + 1}. ${title}`, bold: true, size: 28, color: '002366' })] })], heading: HeadingLevel.HEADING_1, spacing: { before: 400, after: 200 }, border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: '002366' } } }));
 
             if (s.image) {
                 try {

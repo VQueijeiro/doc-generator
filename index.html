@@ -41,7 +41,7 @@
             <div class="modal-icon">📝</div>
             <h2>Nuevo documento</h2>
             <p>Seleccioná el tipo de documento que vas a crear.</p>
-            <div class="doc-type-cards">
+            <div class="doc-type-cards doc-type-cards-3">
                 <div class="doc-type-card" data-type="manual">
                     <div class="doc-type-icon">📘</div>
                     <div class="doc-type-name">Manual de Uso</div>
@@ -51,6 +51,11 @@
                     <div class="doc-type-icon">⚙️</div>
                     <div class="doc-type-name">Doc. de Desarrollo</div>
                     <div class="doc-type-desc">Documentación técnica de arquitectura, APIs, flujos y componentes.</div>
+                </div>
+                <div class="doc-type-card" data-type="minuta">
+                    <div class="doc-type-icon">📋</div>
+                    <div class="doc-type-name">Minuta de Reunión</div>
+                    <div class="doc-type-desc">Registro de reunión con cliente, asistentes, temas tratados y acuerdos.</div>
                 </div>
             </div>
             <div class="modal-actions" style="margin-top:16px;">
@@ -78,6 +83,14 @@
                 <input type="text" id="companyName" placeholder="Ej: Accenture">
             </div>
             <div class="form-group">
+                <label for="authorName">Nombre del autor</label>
+                <input type="text" id="authorName" placeholder="Ej: Damián Luna">
+            </div>
+            <div class="form-group">
+                <label for="docVersion">Versión del documento</label>
+                <input type="text" id="docVersion" placeholder="Ej: 1">
+            </div>
+            <div class="form-group">
                 <label for="docSubtitle">Subtítulo del documento</label>
                 <input type="text" id="docSubtitle" placeholder="Ej: Sistema de Gestión - v1.0">
             </div>
@@ -88,6 +101,26 @@
             <div class="modal-actions">
                 <button class="btn btn-primary" id="saveTemplate">Guardar</button>
                 <button class="btn btn-ghost" id="closeTemplateModal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Manager Modal -->
+    <div class="modal-overlay" id="clientModal">
+        <div class="modal modal-template">
+            <div class="modal-icon">🏢</div>
+            <h2>Gestionar Clientes</h2>
+            <p>Agregá o eliminá clientes de tu lista.</p>
+            <div class="form-group">
+                <label>Agregar cliente</label>
+                <div class="client-add-row">
+                    <input type="text" id="newClientInput" placeholder="Nombre del cliente">
+                    <button class="btn btn-primary btn-sm" id="addClientBtn">Agregar</button>
+                </div>
+            </div>
+            <div class="client-list" id="clientListModal"></div>
+            <div class="modal-actions" style="margin-top:16px;">
+                <button class="btn btn-ghost" id="closeClientModal">Cerrar</button>
             </div>
         </div>
     </div>
@@ -139,12 +172,39 @@
         <div class="header-right">
             <button class="btn btn-sm" id="previewBtn" title="Vista previa">👁 Vista previa</button>
             <button class="btn btn-sm btn-primary" id="exportWordBtn" title="Exportar a Word">📄 Exportar Word</button>
+            <label class="theme-toggle" title="Cambiar tema">
+                <span id="themeIcon">☀️</span>
+                <button class="theme-toggle-switch" id="themeToggle"></button>
+            </label>
             <button class="btn btn-icon" id="settingsBtn" title="Configurar template">⚙️</button>
         </div>
     </header>
 
     <!-- Main -->
     <main class="main" id="mainContent">
+        <!-- Minuta header panel (only for minuta type) -->
+        <div class="minuta-panel" id="minutaPanel" style="display:none;">
+            <div class="minuta-row">
+                <div class="minuta-field">
+                    <label class="context-label">Cliente</label>
+                    <div class="minuta-client-row">
+                        <select id="minutaClientSelect" class="minuta-select">
+                            <option value="">Seleccionar cliente...</option>
+                        </select>
+                        <button class="btn btn-sm" id="manageClientsBtn" title="Gestionar clientes">🏢 Clientes</button>
+                    </div>
+                </div>
+                <div class="minuta-field">
+                    <label class="context-label">Fecha</label>
+                    <input type="date" id="minutaDate" class="minuta-date-input">
+                </div>
+            </div>
+            <div class="minuta-subject" id="minutaSubject">
+                <span class="context-label">Asunto del correo:</span>
+                <span class="minuta-subject-text" id="minutaSubjectText">Seleccioná un cliente para generar el asunto</span>
+            </div>
+        </div>
+
         <div class="toolbar">
             <p class="section-count" id="sectionCount">0 secciones</p>
             <button class="btn btn-primary" id="addSectionBtn">+ Nueva sección</button>
