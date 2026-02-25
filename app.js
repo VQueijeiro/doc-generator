@@ -943,6 +943,9 @@ function loadState() {
 }
 
 // ========== WORD EXPORT ==========
+// Default logo (Intiza) — used when no custom logo is set in template settings
+const INTIZA_LOGO_B64 = 'data:image/jpeg;base64,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';
+
 async function exportToWord() {
     const sections = getCurrentSections();
     if (!sections.length) { toast('Agregá secciones primero'); return; }
@@ -950,7 +953,7 @@ async function exportToWord() {
     toast('Generando documento Word...');
     try {
         const { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel,
-                Header, Footer, PageNumber, AlignmentType,
+                Header, Footer, PageNumber, AlignmentType, VerticalAlign,
                 BorderStyle, PageBreak, Bookmark, InternalHyperlink,
                 TableOfContents, Table, TableRow, TableCell, WidthType } = window.docx;
 
@@ -958,17 +961,66 @@ async function exportToWord() {
         const manual = getCurrentManual();
         const creationDate = new Date(manual.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-        // ---- Header ----
-        const headerChildren = [];
-        if (tmpl.logo) {
-            try {
-                const d = await dataUrlToArrayBuffer(tmpl.logo);
-                headerChildren.push(new Paragraph({ children: [new ImageRun({ data: d, transformation: { width: 120, height: 40 }, type: 'png' })], alignment: AlignmentType.LEFT }));
-            } catch (e) { console.warn('Logo header:', e); }
-        }
-        if (tmpl.companyName) {
-            headerChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.companyName, bold: true, size: 18, color: '666666' })], alignment: AlignmentType.LEFT }));
-        }
+        // ---- Template border (Intiza: #4472C4) ----
+        const hBorder  = { style: BorderStyle.SINGLE, size: 8, color: '4472C4' };
+        const hBorders = { top: hBorder, bottom: hBorder, left: hBorder, right: hBorder };
+
+        // ---- Logo: custom upload or default Intiza logo ----
+        const logoDataUrl = tmpl.logo || INTIZA_LOGO_B64;
+        const logoType    = logoDataUrl.startsWith('data:image/png') ? 'png' : 'jpg';
+        const logoBuffer  = await dataUrlToArrayBuffer(logoDataUrl);
+
+        // ---- Header table: 3 cols, 2 rows (Intiza template) ----
+        // Col widths: 2875 + 3798 + 2684 = 9357 DXA
+        const headerTable = new Table({
+            width: { size: 9357, type: WidthType.DXA },
+            rows: [
+                new TableRow({ children: [
+                    new TableCell({
+                        rowSpan: 2,
+                        width: { size: 2875, type: WidthType.DXA },
+                        borders: hBorders,
+                        verticalAlign: VerticalAlign.CENTER,
+                        children: [new Paragraph({
+                            children: [new ImageRun({ data: logoBuffer, transformation: { width: 160, height: 65 }, type: logoType })],
+                            alignment: AlignmentType.CENTER
+                        })]
+                    }),
+                    new TableCell({
+                        columnSpan: 2,
+                        borders: hBorders,
+                        children: [new Paragraph({
+                            children: [new TextRun({ text: (docTitle.value || 'Documento').toUpperCase(), bold: true, size: 28, color: '002366' })],
+                            alignment: AlignmentType.LEFT,
+                            spacing: { before: 60, after: 60 }
+                        })]
+                    })
+                ]}),
+                new TableRow({ children: [
+                    new TableCell({
+                        width: { size: 3798, type: WidthType.DXA },
+                        borders: hBorders,
+                        children: [new Paragraph({
+                            children: [new TextRun({ text: `Versión ${tmpl.version || '1'}`, size: 20, color: '333333' })],
+                            alignment: AlignmentType.LEFT,
+                            spacing: { before: 40, after: 40 }
+                        })]
+                    }),
+                    new TableCell({
+                        width: { size: 2684, type: WidthType.DXA },
+                        borders: hBorders,
+                        children: [new Paragraph({
+                            children: [
+                                ...(tmpl.authorName ? [new TextRun({ text: tmpl.authorName, size: 20, color: '333333' }), new TextRun({ text: '   ', size: 20 })] : []),
+                                new TextRun({ text: `(${creationDate})`, size: 18, color: '888888' })
+                            ],
+                            alignment: AlignmentType.LEFT,
+                            spacing: { before: 40, after: 40 }
+                        })]
+                    })
+                ]})
+            ]
+        });
 
         // ---- Footer ----
         const footerChildren = [];
@@ -985,43 +1037,20 @@ async function exportToWord() {
         }));
 
         const docChildren = [];
-        const cBorder  = { style: BorderStyle.SINGLE, size: 4, color: 'AAAAAA' };
-        const cBorders = { top: cBorder, bottom: cBorder, left: cBorder, right: cBorder };
 
-        // ---- Cover table (Word 2010 compatible: no rowSpan/columnSpan) ----
-        const logoCellChildren = [];
-        if (tmpl.logo) {
-            try {
-                const d = await dataUrlToArrayBuffer(tmpl.logo);
-                logoCellChildren.push(new Paragraph({ children: [new ImageRun({ data: d, transformation: { width: 100, height: 35 }, type: 'png' })], alignment: AlignmentType.CENTER }));
-            } catch (e) { console.warn('Logo cover:', e); }
-        }
-        if (tmpl.companyName) {
-            logoCellChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.companyName, bold: true, size: 22, color: '002366' })], alignment: AlignmentType.CENTER, spacing: { before: 40 } }));
-        }
-        if (!logoCellChildren.length) logoCellChildren.push(new Paragraph({ children: [new TextRun({ text: ' ' })] }));
-
-        const verRuns = [new TextRun({ text: `Versión ${tmpl.version || '1'}`, size: 20, color: '333333' })];
-        if (tmpl.authorName) verRuns.push(new TextRun({ text: `    ${tmpl.authorName}`, size: 20, color: '333333', bold: true }));
-        verRuns.push(new TextRun({ text: `    (${creationDate})`, size: 18, color: '888888' }));
-
-        docChildren.push(new Table({
-            width: { size: 9000, type: WidthType.DXA },
-            rows: [
-                new TableRow({ children: [
-                    new TableCell({ width: { size: 2700, type: WidthType.DXA }, children: logoCellChildren, borders: cBorders }),
-                    new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: (docTitle.value || 'Documento').toUpperCase(), bold: true, size: 26, color: '002366' })], alignment: AlignmentType.LEFT })], borders: cBorders })
-                ]}),
-                new TableRow({ children: [
-                    new TableCell({ width: { size: 2700, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: ' ' })] })], borders: cBorders }),
-                    new TableCell({ children: [new Paragraph({ children: verRuns })], borders: cBorders })
-                ]})
-            ]
+        // ---- Cover page ----
+        docChildren.push(new Paragraph({ spacing: { before: 3000 } }));
+        docChildren.push(new Paragraph({
+            children: [new TextRun({ text: docTitle.value || 'Documento', bold: true, size: 56, color: '002366' })],
+            alignment: AlignmentType.CENTER
         }));
-
-        docChildren.push(new Paragraph({ spacing: { before: 2000 } }));
-        docChildren.push(new Paragraph({ children: [new TextRun({ text: docTitle.value || 'Documento', bold: true, size: 56, color: '002366' })], alignment: AlignmentType.CENTER }));
-        if (tmpl.subtitle) docChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.subtitle, size: 28, color: '666666' })], alignment: AlignmentType.CENTER, spacing: { before: 200 } }));
+        if (tmpl.subtitle) {
+            docChildren.push(new Paragraph({
+                children: [new TextRun({ text: tmpl.subtitle, size: 28, color: '666666' })],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 200 }
+            }));
+        }
         docChildren.push(new Paragraph({ children: [new PageBreak()] }));
 
         // ---- TOC ----
@@ -1070,8 +1099,8 @@ async function exportToWord() {
             features: { updateFields: true },
             styles:   { default: { document: { run: { font: 'Calibri', size: 22 } } } },
             sections: [{
-                properties: { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }, pageNumbers: { start: 1 } } },
-                headers:    headerChildren.length ? { default: new Header({ children: headerChildren }) } : undefined,
+                properties: { page: { margin: { top: 1417, right: 1701, bottom: 1417, left: 1701 }, pageNumbers: { start: 1 } } },
+                headers:    { default: new Header({ children: [headerTable] }) },
                 footers:    { default: new Footer({ children: footerChildren }) },
                 children:   docChildren
             }]
