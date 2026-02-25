@@ -1,8 +1,14 @@
 // State
 let sections = [];
-let apiKey = localStorage.getItem('docgen_apikey') || '';
+let templateConfig = {
+    logo: null,
+    companyName: '',
+    subtitle: '',
+    footerText: ''
+};
 const STORAGE_KEY = 'docgen_sections';
 const TITLE_KEY = 'docgen_title';
+const TEMPLATE_KEY = 'docgen_template';
 
 // DOM
 const $ = (s) => document.querySelector(s);
@@ -16,7 +22,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadState();
     renderAll();
     setupEventListeners();
-    checkApiKey();
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js');
     }
@@ -24,96 +29,116 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupEventListeners() {
     $('#addSectionBtn').addEventListener('click', addSection);
-    $('#settingsBtn').addEventListener('click', () => showModal('apiKeyModal'));
-    $('#saveApiKey').addEventListener('click', saveApiKey);
-    $('#closeApiKeyModal').addEventListener('click', () => hideModal('apiKeyModal'));
+    $('#settingsBtn').addEventListener('click', openTemplateModal);
+    $('#saveTemplate').addEventListener('click', saveTemplate);
+    $('#closeTemplateModal').addEventListener('click', () => hideModal('templateModal'));
     $('#previewBtn').addEventListener('click', showPreview);
-    $('#generateAllBtn').addEventListener('click', generateAll);
+    $('#exportWordBtn').addEventListener('click', exportToWord);
+    $('#exportWord').addEventListener('click', exportToWord);
     $('#closePreview').addEventListener('click', () => hideModal('previewModal'));
-    $('#exportPdf').addEventListener('click', exportPdf);
     $('#copyMarkdown').addEventListener('click', copyMarkdown);
+
     docTitle.addEventListener('input', () => {
         localStorage.setItem(TITLE_KEY, docTitle.value);
+    });
+
+    // Logo upload
+    const logoUpload = $('#logoUpload');
+    logoUpload.addEventListener('click', (e) => {
+        if (e.target.id === 'removeLogo') return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.addEventListener('change', () => {
+            if (input.files[0]) loadLogo(input.files[0]);
+        });
+        input.click();
+    });
+    $('#removeLogo').addEventListener('click', (e) => {
+        e.stopPropagation();
+        templateConfig.logo = null;
+        $('#logoPreview').style.display = 'none';
+        $('#logoPlaceholder').style.display = '';
+        $('#removeLogo').style.display = 'none';
+    });
+
+    // Template file upload
+    $('#templateUploadZone').addEventListener('click', () => $('#templateFileInput').click());
+    $('#templateFileInput').addEventListener('change', (e) => {
+        if (e.target.files[0]) {
+            $('#templateFileName').textContent = e.target.files[0].name;
+            $('#templateUploadZone').classList.add('has-file');
+        }
     });
 
     // Global paste
     document.addEventListener('paste', (e) => {
         const activeEl = document.activeElement;
-        if (activeEl.classList.contains('context-input') || activeEl.classList.contains('generated-text') ||
-            activeEl.id === 'docTitle' || activeEl.id === 'apiKeyInput') return;
+        if (activeEl.classList.contains('context-input') ||
+            activeEl.classList.contains('generated-text') ||
+            activeEl.classList.contains('section-title-input') ||
+            activeEl.id === 'docTitle' ||
+            activeEl.id === 'companyName' ||
+            activeEl.id === 'docSubtitle' ||
+            activeEl.id === 'footerText') return;
 
         const items = e.clipboardData.items;
         for (const item of items) {
             if (item.type.startsWith('image/')) {
                 e.preventDefault();
                 const file = item.getAsFile();
-                // If no sections or last section has image, add new
                 if (sections.length === 0 || sections[sections.length - 1].image) {
                     addSection();
                 }
-                const lastIdx = sections.length - 1;
-                handleImageFile(file, lastIdx);
+                handleImageFile(file, sections.length - 1);
                 break;
             }
         }
     });
 }
 
-// API Key
-function checkApiKey() {
-    if (!apiKey) {
-        showModal('apiKeyModal');
-    } else {
-        $('#closeApiKeyModal').style.display = '';
-    }
+// Logo
+function loadLogo(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        templateConfig.logo = e.target.result;
+        const preview = $('#logoPreview');
+        preview.src = e.target.result;
+        preview.style.display = '';
+        $('#logoPlaceholder').style.display = 'none';
+        $('#removeLogo').style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
 }
 
-async function saveApiKey() {
-    const key = $('#apiKeyInput').value.trim();
-    if (!key) return;
-
-    const status = $('#apiStatus');
-    status.textContent = 'Validando...';
-    status.className = 'api-status';
-
-    try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'x-api-key': key,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerous-direct-browser-access': 'true',
-                'content-type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-5-20250929',
-                max_tokens: 10,
-                messages: [{ role: 'user', content: 'Di "OK"' }]
-            })
-        });
-
-        if (res.ok) {
-            apiKey = key;
-            localStorage.setItem('docgen_apikey', key);
-            status.textContent = '✓ API key válida y guardada';
-            status.className = 'api-status success';
-            $('#closeApiKeyModal').style.display = '';
-            setTimeout(() => hideModal('apiKeyModal'), 1200);
-        } else {
-            const err = await res.json();
-            status.textContent = '✗ Error: ' + (err.error?.message || 'Key inválida');
-            status.className = 'api-status error';
-        }
-    } catch (e) {
-        status.textContent = '✗ Error de conexión';
-        status.className = 'api-status error';
+// Template modal
+function openTemplateModal() {
+    $('#companyName').value = templateConfig.companyName;
+    $('#docSubtitle').value = templateConfig.subtitle;
+    $('#footerText').value = templateConfig.footerText;
+    if (templateConfig.logo) {
+        $('#logoPreview').src = templateConfig.logo;
+        $('#logoPreview').style.display = '';
+        $('#logoPlaceholder').style.display = 'none';
+        $('#removeLogo').style.display = 'flex';
     }
+    showModal('templateModal');
+}
+
+function saveTemplate() {
+    templateConfig.companyName = $('#companyName').value.trim();
+    templateConfig.subtitle = $('#docSubtitle').value.trim();
+    templateConfig.footerText = $('#footerText').value.trim();
+    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templateConfig));
+    hideModal('templateModal');
+    toast('Template guardado');
 }
 
 // Sections CRUD
 function addSection() {
     sections.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        title: '',
         image: null,
         imageType: null,
         context: '',
@@ -121,7 +146,6 @@ function addSection() {
     });
     saveState();
     renderAll();
-    // Scroll to new section
     setTimeout(() => {
         const cards = sectionsContainer.querySelectorAll('.section-card');
         if (cards.length) cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -153,10 +177,8 @@ function renderAll() {
         sections.forEach((s, i) => fragment.appendChild(createSectionCard(s, i)));
     }
 
-    // Remove old cards
     sectionsContainer.querySelectorAll('.section-card').forEach(c => c.remove());
     sectionsContainer.appendChild(fragment);
-
     sectionCount.textContent = sections.length + (sections.length === 1 ? ' sección' : ' secciones');
 }
 
@@ -180,23 +202,20 @@ function createSectionCard(section, idx) {
         </div>
         <div class="section-body">
             <div class="section-left">
+                <label class="context-label">Título de la sección</label>
+                <input type="text" class="section-title-input" placeholder="Ej: Inicio de sesión" data-idx="${idx}" value="${escapeAttr(section.title)}">
                 <div class="image-drop-zone ${section.image ? 'has-image' : ''}" data-idx="${idx}">
                     ${section.image
                         ? `<img src="${section.image}" alt="Captura"><button class="remove-image" title="Quitar imagen">✕</button>`
                         : `<span class="placeholder-icon">🖼</span><span class="placeholder-text">Arrastrá una imagen aquí,<br>hacé clic, o pegá con Ctrl+V</span>`
                     }
                 </div>
-                <label class="context-label">Contexto (opcional)</label>
-                <textarea class="context-input" placeholder="Ej: Esta pantalla muestra el formulario de alta de cliente..." data-idx="${idx}">${section.context}</textarea>
             </div>
             <div class="section-right">
                 <div class="generated-label">
-                    <label class="context-label">Texto generado</label>
+                    <label class="context-label">Texto de la sección</label>
                 </div>
-                <textarea class="generated-text" placeholder="El texto generado por IA aparecerá aquí. También podés escribir manualmente." data-idx="${idx}">${section.generated}</textarea>
-                <button class="btn btn-primary generate-btn" data-idx="${idx}" ${!section.image ? 'disabled' : ''}>
-                    ⚡ Generar texto
-                </button>
+                <textarea class="generated-text" placeholder="Pegá acá el texto generado o escribí manualmente el contenido de esta sección del manual." data-idx="${idx}">${section.generated}</textarea>
             </div>
         </div>
     `;
@@ -220,9 +239,9 @@ function createSectionCard(section, idx) {
         });
     }
 
-    const contextInput = card.querySelector('.context-input');
-    contextInput.addEventListener('input', () => {
-        sections[idx].context = contextInput.value;
+    const titleInput = card.querySelector('.section-title-input');
+    titleInput.addEventListener('input', () => {
+        sections[idx].title = titleInput.value;
         saveState();
     });
 
@@ -244,10 +263,6 @@ function createSectionCard(section, idx) {
         }
     };
     dropZone.addEventListener('paste', handlePaste);
-    contextInput.addEventListener('paste', handlePaste);
-
-    const genBtn = card.querySelector('.generate-btn');
-    genBtn.addEventListener('click', () => generateForSection(idx));
 
     // Drag and drop reorder
     card.addEventListener('dragstart', (e) => {
@@ -293,7 +308,6 @@ function setupDropZone(zone, idx) {
 
     zone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        // Only handle file drops, not section reorder
         if (e.dataTransfer.types.includes('Files')) {
             zone.classList.add('drag-hover');
         }
@@ -320,120 +334,252 @@ function handleImageFile(file, idx) {
     reader.readAsDataURL(file);
 }
 
-// AI Generation
-async function generateForSection(idx) {
-    const section = sections[idx];
-    if (!section.image) {
-        toast('Agregá una imagen primero');
-        return;
-    }
-    if (!apiKey) {
-        showModal('apiKeyModal');
+// Word Export using docx.js
+async function exportToWord() {
+    if (sections.length === 0) {
+        toast('Agregá secciones primero');
         return;
     }
 
-    const btn = sectionsContainer.querySelectorAll('.generate-btn')[idx];
-    btn.classList.add('loading');
-    btn.textContent = '⏳ Generando...';
+    toast('Generando documento Word...');
 
     try {
-        // Extract base64 and media type from data URL
-        const match = section.image.match(/^data:(image\/[^;]+);base64,(.+)$/);
-        if (!match) throw new Error('Formato de imagen inválido');
+        const { Document, Packer, Paragraph, TextRun, ImageRun, HeadingLevel,
+                Header, Footer, PageNumber, NumberFormat, AlignmentType,
+                BorderStyle, PageBreak } = window.docx;
 
-        const mediaType = match[1];
-        const base64Data = match[2];
+        // Prepare header children
+        const headerChildren = [];
 
-        const userContent = [
-            {
-                type: 'image',
-                source: {
-                    type: 'base64',
-                    media_type: mediaType,
-                    data: base64Data
-                }
-            },
-            {
-                type: 'text',
-                text: section.context
-                    ? `Contexto adicional del usuario: "${section.context}"\n\nGenerá el texto para esta sección del manual de usuario basándote en la imagen y el contexto.`
-                    : 'Generá el texto para esta sección del manual de usuario basándote en la imagen.'
+        if (templateConfig.logo) {
+            try {
+                const logoData = await dataUrlToArrayBuffer(templateConfig.logo);
+                headerChildren.push(new Paragraph({
+                    children: [
+                        new ImageRun({
+                            data: logoData,
+                            transformation: { width: 120, height: 40 },
+                            type: 'png'
+                        })
+                    ],
+                    alignment: AlignmentType.LEFT
+                }));
+            } catch (e) {
+                console.warn('Could not add logo to header:', e);
             }
-        ];
+        }
 
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerous-direct-browser-access': 'true',
-                'content-type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-5-20250929',
-                max_tokens: 1500,
-                system: `Sos un redactor técnico profesional especializado en documentación de software. Tu tarea es generar texto para un manual de usuario corporativo.
+        if (templateConfig.companyName) {
+            headerChildren.push(new Paragraph({
+                children: [new TextRun({
+                    text: templateConfig.companyName,
+                    bold: true,
+                    size: 18,
+                    color: '666666'
+                })],
+                alignment: AlignmentType.LEFT
+            }));
+        }
 
-Reglas:
-- Escribí en español neutro/formal, en tercera persona o usando "el usuario"
-- El texto debe ser instructivo: describí lo que se ve en la pantalla y los pasos que el usuario debe seguir
-- Usá un tono profesional y claro, apto para un cliente empresarial
-- Estructurá con pasos numerados cuando corresponda
-- No uses markdown ni formato especial, solo texto plano con saltos de línea
-- Mencioná los nombres exactos de botones, campos, menús y secciones visibles en la imagen
-- Sé conciso pero completo: cubrí todos los elementos relevantes de la pantalla
-- No agregues encabezados de sección ni títulos, solo el cuerpo del texto`,
-                messages: [{ role: 'user', content: userContent }]
-            })
+        // Prepare footer
+        const footerChildren = [];
+        if (templateConfig.footerText) {
+            footerChildren.push(new Paragraph({
+                children: [new TextRun({
+                    text: templateConfig.footerText,
+                    size: 16,
+                    color: '999999',
+                    italics: true
+                })],
+                alignment: AlignmentType.LEFT
+            }));
+        }
+        footerChildren.push(new Paragraph({
+            children: [
+                new TextRun({ text: 'Página ', size: 16, color: '999999' }),
+                new TextRun({ children: [PageNumber.CURRENT], size: 16, color: '999999' }),
+                new TextRun({ text: ' de ', size: 16, color: '999999' }),
+                new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, color: '999999' })
+            ],
+            alignment: AlignmentType.RIGHT
+        }));
+
+        // Build document children
+        const docChildren = [];
+
+        // Title page
+        docChildren.push(new Paragraph({ spacing: { before: 3000 } }));
+        docChildren.push(new Paragraph({
+            children: [new TextRun({
+                text: docTitle.value || 'Manual de Usuario',
+                bold: true,
+                size: 56,
+                color: '2B2B7B'
+            })],
+            alignment: AlignmentType.CENTER
+        }));
+
+        if (templateConfig.subtitle) {
+            docChildren.push(new Paragraph({
+                children: [new TextRun({
+                    text: templateConfig.subtitle,
+                    size: 28,
+                    color: '666666'
+                })],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 200 }
+            }));
+        }
+
+        if (templateConfig.companyName) {
+            docChildren.push(new Paragraph({
+                children: [new TextRun({
+                    text: templateConfig.companyName,
+                    size: 24,
+                    color: '999999'
+                })],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 400 }
+            }));
+        }
+
+        docChildren.push(new Paragraph({
+            children: [new TextRun({
+                text: new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' }),
+                size: 20,
+                color: '999999'
+            })],
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 200 }
+        }));
+
+        // Page break after title
+        docChildren.push(new Paragraph({ children: [new PageBreak()] }));
+
+        // Table of Contents (simple)
+        docChildren.push(new Paragraph({
+            children: [new TextRun({ text: 'Índice', bold: true, size: 32, color: '2B2B7B' })],
+            spacing: { after: 300 }
+        }));
+
+        sections.forEach((s, i) => {
+            const title = s.title || `Sección ${i + 1}`;
+            docChildren.push(new Paragraph({
+                children: [new TextRun({
+                    text: `${i + 1}. ${title}`,
+                    size: 22,
+                    color: '333333'
+                })],
+                spacing: { before: 80 }
+            }));
         });
 
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error?.message || 'Error en la API');
+        docChildren.push(new Paragraph({ children: [new PageBreak()] }));
+
+        // Sections content
+        for (let i = 0; i < sections.length; i++) {
+            const s = sections[i];
+            const title = s.title || `Sección ${i + 1}`;
+
+            // Section heading
+            docChildren.push(new Paragraph({
+                children: [new TextRun({
+                    text: `${i + 1}. ${title}`,
+                    bold: true,
+                    size: 28,
+                    color: '2B2B7B'
+                })],
+                heading: HeadingLevel.HEADING_1,
+                spacing: { before: 400, after: 200 },
+                border: {
+                    bottom: { style: BorderStyle.SINGLE, size: 2, color: '2B2B7B' }
+                }
+            }));
+
+            // Image
+            if (s.image) {
+                try {
+                    const imgData = await dataUrlToArrayBuffer(s.image);
+                    const dims = await getImageDimensions(s.image);
+                    // Scale to fit page width (max ~500pt = ~6.9 inches)
+                    const maxWidth = 500;
+                    let w = dims.width;
+                    let h = dims.height;
+                    if (w > maxWidth) {
+                        h = Math.round(h * (maxWidth / w));
+                        w = maxWidth;
+                    }
+                    docChildren.push(new Paragraph({
+                        children: [new ImageRun({
+                            data: imgData,
+                            transformation: { width: w, height: h },
+                            type: s.imageType?.includes('png') ? 'png' : 'jpg'
+                        })],
+                        alignment: AlignmentType.CENTER,
+                        spacing: { before: 200, after: 200 }
+                    }));
+                } catch (e) {
+                    console.warn('Could not add image for section', i, e);
+                }
+            }
+
+            // Text content
+            if (s.generated) {
+                const lines = s.generated.split('\n');
+                for (const line of lines) {
+                    docChildren.push(new Paragraph({
+                        children: [new TextRun({
+                            text: line,
+                            size: 22,
+                            font: 'Calibri'
+                        })],
+                        spacing: { before: 60, after: 60 }
+                    }));
+                }
+            }
+
+            // Page break between sections (except last)
+            if (i < sections.length - 1) {
+                docChildren.push(new Paragraph({ children: [new PageBreak()] }));
+            }
         }
 
-        const data = await res.json();
-        const text = data.content[0].text;
-        sections[idx].generated = text;
-        saveState();
-        renderAll();
-        toast('Texto generado correctamente');
+        const doc = new Document({
+            styles: {
+                default: {
+                    document: {
+                        run: { font: 'Calibri', size: 22 }
+                    }
+                }
+            },
+            sections: [{
+                properties: {
+                    page: {
+                        margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+                        pageNumbers: { start: 1 }
+                    }
+                },
+                headers: headerChildren.length > 0 ? {
+                    default: new Header({ children: headerChildren })
+                } : undefined,
+                footers: {
+                    default: new Footer({ children: footerChildren })
+                },
+                children: docChildren
+            }]
+        });
 
+        const blob = await Packer.toBlob(doc);
+        const fileName = (docTitle.value || 'manual').replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ\s-]/g, '').replace(/\s+/g, '_');
+        window.saveAs(blob, `${fileName}.docx`);
+        toast('Documento Word descargado');
     } catch (e) {
-        toast('Error: ' + e.message);
-        console.error(e);
-    } finally {
-        btn.classList.remove('loading');
-        btn.textContent = '⚡ Generar texto';
+        console.error('Export error:', e);
+        toast('Error al exportar: ' + e.message);
     }
 }
 
-async function generateAll() {
-    const withImages = sections.filter(s => s.image && !s.generated);
-    if (withImages.length === 0) {
-        toast('No hay secciones pendientes de generar');
-        return;
-    }
-    if (!apiKey) { showModal('apiKeyModal'); return; }
-
-    const btn = $('#generateAllBtn');
-    btn.disabled = true;
-    btn.textContent = '⏳ Generando...';
-
-    for (let i = 0; i < sections.length; i++) {
-        if (sections[i].image && !sections[i].generated) {
-            await generateForSection(i);
-            // Small delay between calls
-            await new Promise(r => setTimeout(r, 500));
-        }
-    }
-
-    btn.disabled = false;
-    btn.textContent = '⚡ Generar todo';
-    toast('Generación completa');
-}
-
-// Preview & Export
+// Preview
 function showPreview() {
     if (sections.length === 0) {
         toast('Agregá secciones primero');
@@ -441,14 +587,15 @@ function showPreview() {
     }
 
     const content = $('#previewContent');
-    let html = `<h1>${docTitle.value || 'Manual de Usuario'}</h1>`;
+    let html = `<h1>${escapeHtml(docTitle.value || 'Manual de Usuario')}</h1>`;
 
     sections.forEach((s, i) => {
+        const title = s.title || `Sección ${i + 1}`;
         html += `<div class="preview-section">`;
-        html += `<h2>Sección ${i + 1}</h2>`;
-        if (s.image) html += `<img src="${s.image}" alt="Sección ${i + 1}">`;
+        html += `<h2>${i + 1}. ${escapeHtml(title)}</h2>`;
+        if (s.image) html += `<img src="${s.image}" alt="${escapeHtml(title)}">`;
         if (s.generated) html += `<div class="preview-text">${escapeHtml(s.generated)}</div>`;
-        else html += `<div class="preview-text" style="color:var(--text-muted)">(Sin texto generado)</div>`;
+        else html += `<div class="preview-text" style="color:var(--text-muted)">(Sin texto todavía)</div>`;
         html += `</div>`;
     });
 
@@ -456,17 +603,12 @@ function showPreview() {
     showModal('previewModal');
 }
 
-function exportPdf() {
-    hideModal('previewModal');
-    setTimeout(() => window.print(), 300);
-}
-
 function copyMarkdown() {
     let md = `# ${docTitle.value || 'Manual de Usuario'}\n\n`;
     sections.forEach((s, i) => {
-        md += `## Sección ${i + 1}\n\n`;
+        const title = s.title || `Sección ${i + 1}`;
+        md += `## ${i + 1}. ${title}\n\n`;
         if (s.generated) md += s.generated + '\n\n';
-        if (s.image) md += `![Sección ${i + 1}](imagen_seccion_${i + 1})\n\n`;
         md += '---\n\n';
     });
 
@@ -478,9 +620,8 @@ function saveState() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(sections));
     } catch (e) {
-        // localStorage full — likely too many large images
-        console.warn('localStorage full, cannot save state');
-        toast('Advertencia: almacenamiento lleno. Considerá exportar y limpiar secciones.');
+        console.warn('localStorage full');
+        toast('Almacenamiento lleno. Exportá y eliminá secciones.');
     }
 }
 
@@ -490,18 +631,16 @@ function loadState() {
         if (saved) sections = JSON.parse(saved);
         const title = localStorage.getItem(TITLE_KEY);
         if (title) docTitle.value = title;
+        const tmpl = localStorage.getItem(TEMPLATE_KEY);
+        if (tmpl) templateConfig = JSON.parse(tmpl);
     } catch (e) {
         sections = [];
     }
 }
 
 // Modals
-function showModal(id) {
-    document.getElementById(id).classList.add('active');
-}
-function hideModal(id) {
-    document.getElementById(id).classList.remove('active');
-}
+function showModal(id) { document.getElementById(id).classList.add('active'); }
+function hideModal(id) { document.getElementById(id).classList.remove('active'); }
 
 // Utils
 function toast(msg) {
@@ -513,4 +652,27 @@ function toast(msg) {
 
 function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+}
+
+function escapeAttr(str) {
+    return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function dataUrlToArrayBuffer(dataUrl) {
+    return new Promise((resolve) => {
+        const binary = atob(dataUrl.split(',')[1]);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+        resolve(bytes.buffer);
+    });
+}
+
+function getImageDimensions(dataUrl) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+        img.onerror = () => resolve({ width: 400, height: 300 });
+        img.src = dataUrl;
+    });
 }

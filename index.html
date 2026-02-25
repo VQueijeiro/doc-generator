@@ -10,23 +10,48 @@
     <link rel="apple-touch-icon" href="icon-192.svg">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/docx@9.1.1/build/index.umd.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 </head>
 <body>
-    <!-- API Key Modal -->
-    <div class="modal-overlay" id="apiKeyModal">
-        <div class="modal">
-            <div class="modal-icon">🔑</div>
-            <h2>Configurar API Key</h2>
-            <p>Ingresá tu API key de Anthropic para usar la generación con IA. Se guarda localmente en tu navegador.</p>
+    <!-- Template Config Modal -->
+    <div class="modal-overlay" id="templateModal">
+        <div class="modal modal-template">
+            <div class="modal-icon">📄</div>
+            <h2>Configurar Template</h2>
+            <p>Configurá el encabezado y pie de página del documento Word.</p>
             <div class="form-group">
-                <label for="apiKeyInput">API Key</label>
-                <input type="password" id="apiKeyInput" placeholder="sk-ant-api03-...">
+                <label>Logo de la empresa</label>
+                <div class="logo-upload" id="logoUpload">
+                    <img id="logoPreview" style="display:none;">
+                    <span id="logoPlaceholder">Hacé clic o arrastrá un logo aquí</span>
+                    <button class="remove-image" id="removeLogo" style="display:none;" title="Quitar logo">✕</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="companyName">Nombre de la empresa</label>
+                <input type="text" id="companyName" placeholder="Ej: Accenture">
+            </div>
+            <div class="form-group">
+                <label for="docSubtitle">Subtítulo del documento</label>
+                <input type="text" id="docSubtitle" placeholder="Ej: Sistema de Gestión - v1.0">
+            </div>
+            <div class="form-group">
+                <label for="footerText">Texto del pie de página</label>
+                <input type="text" id="footerText" placeholder="Ej: Confidencial - Uso interno">
+            </div>
+            <div class="form-group">
+                <label>Plantilla Word (opcional)</label>
+                <div class="template-upload-zone" id="templateUploadZone">
+                    <span id="templateFileName">Subí un .docx como referencia de estilo</span>
+                </div>
+                <input type="file" id="templateFileInput" accept=".docx" style="display:none;">
+                <p class="form-hint">Se usará el encabezado y pie de página de la plantilla</p>
             </div>
             <div class="modal-actions">
-                <button class="btn btn-primary" id="saveApiKey">Guardar y validar</button>
-                <button class="btn btn-ghost" id="closeApiKeyModal" style="display:none;">Cancelar</button>
+                <button class="btn btn-primary" id="saveTemplate">Guardar</button>
+                <button class="btn btn-ghost" id="closeTemplateModal">Cancelar</button>
             </div>
-            <p class="api-status" id="apiStatus"></p>
         </div>
     </div>
 
@@ -37,7 +62,7 @@
                 <h2>Vista previa del documento</h2>
                 <div class="preview-actions">
                     <button class="btn btn-sm" id="copyMarkdown" title="Copiar Markdown">📋 Markdown</button>
-                    <button class="btn btn-sm btn-primary" id="exportPdf" title="Exportar PDF">📄 PDF</button>
+                    <button class="btn btn-sm btn-primary" id="exportWord" title="Exportar Word">📄 Word (.docx)</button>
                     <button class="btn btn-icon" id="closePreview">✕</button>
                 </div>
             </div>
@@ -61,8 +86,8 @@
         </div>
         <div class="header-right">
             <button class="btn btn-sm" id="previewBtn" title="Vista previa">👁 Vista previa</button>
-            <button class="btn btn-sm" id="generateAllBtn" title="Generar todo">⚡ Generar todo</button>
-            <button class="btn btn-icon" id="settingsBtn" title="Configuración API">⚙️</button>
+            <button class="btn btn-sm btn-primary" id="exportWordBtn" title="Exportar a Word">📄 Exportar Word</button>
+            <button class="btn btn-icon" id="settingsBtn" title="Configurar template">⚙️</button>
         </div>
     </header>
 
@@ -78,6 +103,7 @@
                 <div class="empty-icon">📸</div>
                 <h3>Sin secciones todavía</h3>
                 <p>Hacé clic en "Nueva sección" o pegá una imagen con <kbd>Ctrl+V</kbd> para comenzar.</p>
+                <p style="margin-top:12px;font-size:0.85rem;">Armá las secciones con imágenes y texto, después exportá a Word.</p>
             </div>
         </div>
     </main>

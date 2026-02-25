@@ -362,14 +362,24 @@ body {
 }
 .generated-text::placeholder { color: var(--text-muted); }
 
-.generate-btn {
+/* Section title input */
+.section-title-input {
     width: 100%;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-family: inherit;
+    transition: border-color 0.2s;
 }
-
-.generate-btn.loading {
-    pointer-events: none;
-    opacity: 0.7;
+.section-title-input:focus {
+    outline: none;
+    border-color: var(--primary);
 }
+.section-title-input::placeholder { color: var(--text-muted); }
 
 /* Modal */
 .modal-overlay {
@@ -437,13 +447,62 @@ body {
     justify-content: center;
 }
 
-.api-status {
-    margin-top: 12px;
-    font-size: 0.8rem;
-    min-height: 20px;
+/* Logo upload */
+.logo-upload {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-sm);
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
 }
-.api-status.success { color: var(--success); }
-.api-status.error { color: var(--danger); }
+.logo-upload:hover { border-color: var(--primary); background: rgba(108,99,255,0.05); }
+.logo-upload img {
+    max-height: 60px;
+    max-width: 200px;
+    object-fit: contain;
+}
+.logo-upload #logoPlaceholder {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+.logo-upload .remove-image {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.7);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Template upload zone */
+.template-upload-zone {
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    transition: border-color 0.2s;
+}
+.template-upload-zone:hover { border-color: var(--primary); }
+.template-upload-zone.has-file { border-style: solid; color: var(--success); }
+.form-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+.modal-template { max-width: 500px; }
 
 /* Preview modal */
 .modal-preview {
