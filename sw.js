@@ -12,7 +12,17 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-    // Don't cache API calls
     if (e.request.url.includes('api.anthropic.com')) return;
-    e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request)));
+    const url = new URL(e.request.url);
+    const isMainAsset = ['index.html', 'style.css', 'app.js', 'sw.js'].some(a => url.pathname.endsWith(a)) || url.pathname.endsWith('/');
+    if (isMainAsset) {
+        // Network first: always get fresh files, update cache, fallback to cache
+        e.respondWith(fetch(e.request).then(r => {
+            const clone = r.clone();
+            caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+            return r;
+        }).catch(() => caches.match(e.request)));
+    } else {
+        e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request)));
+    }
 });
