@@ -1,12 +1,17 @@
-// ========== MULTI-MANUAL STATE ==========
-let manuals = [];       // Array of { id, title, sections, createdAt, updatedAt }
+// ========== STATE ==========
+let manuals = [];
 let currentManualId = null;
-let templateConfig = { logo: null, companyName: '', subtitle: '', footerText: '' };
+let templates = { manual: null, desarrollo: null }; // persistent per type
 let deleteTargetId = null;
+let quillInstances = {};
 
 const MANUALS_KEY = 'docgen_manuals';
 const CURRENT_KEY = 'docgen_current';
-const TEMPLATE_KEY = 'docgen_template';
+const TEMPLATES_KEY = 'docgen_templates';
+const DOC_TYPES = {
+    manual: { label: 'Manual de Uso', icon: '📘', defaultTitle: 'Manual de Usuario' },
+    desarrollo: { label: 'Doc. de Desarrollo', icon: '⚙️', defaultTitle: 'Documento de Desarrollo' }
+};
 
 const $ = (s) => document.querySelector(s);
 const sectionsContainer = $('#sectionsContainer');
@@ -17,7 +22,7 @@ const docTitle = $('#docTitle');
 // ========== INIT ==========
 document.addEventListener('DOMContentLoaded', () => {
     loadState();
-    if (manuals.length === 0) createNewManual(false);
+    if (manuals.length === 0) createNewManual('manual', false);
     loadManual(currentManualId || manuals[0].id);
     renderSidebar();
     renderSections();
@@ -27,13 +32,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ========== EVENT LISTENERS ==========
 function setupEventListeners() {
-    // Sidebar
     $('#sidebarToggle').addEventListener('click', toggleSidebar);
     $('#sidebarClose').addEventListener('click', closeSidebar);
     $('#sidebarOverlay').addEventListener('click', closeSidebar);
-    $('#newManualBtn').addEventListener('click', () => { createNewManual(true); closeSidebar(); });
+    $('#newManualBtn').addEventListener('click', () => showModal('newDocModal'));
+    $('#closeNewDocModal').addEventListener('click', () => hideModal('newDocModal'));
 
-    // Header
+    // Doc type selection
+    document.querySelectorAll('.doc-type-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const type = card.dataset.type;
+            hideModal('newDocModal');
+            createNewManual(type, true);
+            closeSidebar();
+        });
+    });
+
     $('#addSectionBtn').addEventListener('click', addSection);
     $('#settingsBtn').addEventListener('click', openTemplateModal);
     $('#saveTemplate').addEventListener('click', saveTemplate);
@@ -43,56 +57,38 @@ function setupEventListeners() {
     $('#exportWord').addEventListener('click', exportToWord);
     $('#closePreview').addEventListener('click', () => hideModal('previewModal'));
     $('#copyMarkdown').addEventListener('click', copyMarkdown);
-
-    // Delete modal
     $('#confirmDelete').addEventListener('click', confirmDeleteManual);
     $('#cancelDelete').addEventListener('click', () => hideModal('deleteModal'));
 
-    // Title change
     docTitle.addEventListener('input', () => {
         const manual = getCurrentManual();
-        if (manual) {
-            manual.title = docTitle.value;
-            manual.updatedAt = Date.now();
-            saveAll();
-            renderSidebar();
-        }
+        if (manual) { manual.title = docTitle.value; manual.updatedAt = Date.now(); saveAll(); renderSidebar(); }
     });
 
     // Logo upload
     $('#logoUpload').addEventListener('click', (e) => {
         if (e.target.id === 'removeLogo') return;
         const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
+        input.type = 'file'; input.accept = 'image/*';
         input.addEventListener('change', () => { if (input.files[0]) loadLogo(input.files[0]); });
         input.click();
     });
     $('#removeLogo').addEventListener('click', (e) => {
         e.stopPropagation();
-        templateConfig.logo = null;
+        const tmpl = getTemplateForCurrent();
+        tmpl.logo = null;
         $('#logoPreview').style.display = 'none';
         $('#logoPlaceholder').style.display = '';
         $('#removeLogo').style.display = 'none';
     });
 
-    // Template file
-    $('#templateUploadZone').addEventListener('click', () => $('#templateFileInput').click());
-    $('#templateFileInput').addEventListener('change', (e) => {
-        if (e.target.files[0]) {
-            $('#templateFileName').textContent = e.target.files[0].name;
-            $('#templateUploadZone').classList.add('has-file');
-        }
-    });
-
     // Global paste
     document.addEventListener('paste', (e) => {
         const el = document.activeElement;
-        if (el.classList.contains('context-input') || el.classList.contains('generated-text') ||
-            el.classList.contains('section-title-input') || el.id === 'docTitle' ||
-            el.id === 'companyName' || el.id === 'docSubtitle' || el.id === 'footerText') return;
-        const items = e.clipboardData.items;
-        for (const item of items) {
+        if (el.closest('.ql-editor') || el.classList.contains('section-title-input') ||
+            el.id === 'docTitle' || el.id === 'companyName' ||
+            el.id === 'docSubtitle' || el.id === 'footerText') return;
+        for (const item of e.clipboardData.items) {
             if (item.type.startsWith('image/')) {
                 e.preventDefault();
                 const sections = getCurrentSections();
@@ -105,113 +101,152 @@ function setupEventListeners() {
 }
 
 // ========== SIDEBAR ==========
-function toggleSidebar() {
-    $('#sidebar').classList.toggle('open');
-    $('#sidebarOverlay').classList.toggle('active');
-}
-function closeSidebar() {
-    $('#sidebar').classList.remove('open');
-    $('#sidebarOverlay').classList.remove('active');
-}
+function toggleSidebar() { $('#sidebar').classList.toggle('open'); $('#sidebarOverlay').classList.toggle('active'); }
+function closeSidebar() { $('#sidebar').classList.remove('open'); $('#sidebarOverlay').classList.remove('active'); }
 
 function renderSidebar() {
     const list = $('#sidebarList');
-    // Sort by updatedAt descending
     const sorted = [...manuals].sort((a, b) => b.updatedAt - a.updatedAt);
     list.innerHTML = sorted.map(m => {
         const isActive = m.id === currentManualId;
         const date = new Date(m.updatedAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
-        const secCount = m.sections.length;
-        return `
-            <div class="sidebar-item ${isActive ? 'active' : ''}" data-id="${m.id}">
-                <div class="sidebar-item-info">
-                    <span class="sidebar-item-title">${escapeHtml(m.title || 'Sin título')}</span>
-                    <span class="sidebar-item-sections">${secCount} sección${secCount !== 1 ? 'es' : ''} · ${date}</span>
-                </div>
-                <button class="sidebar-item-delete" data-delete="${m.id}" title="Eliminar">🗑</button>
+        const type = DOC_TYPES[m.docType] || DOC_TYPES.manual;
+        return `<div class="sidebar-item ${isActive ? 'active' : ''}" data-id="${m.id}">
+            <div class="sidebar-item-info">
+                <span class="sidebar-item-title">${escapeHtml(m.title || 'Sin título')}</span>
+                <span class="sidebar-item-sections">
+                    <span class="sidebar-item-type ${m.docType || 'manual'}">${type.label}</span> · ${m.sections.length} sec · ${date}
+                </span>
             </div>
-        `;
+            <button class="sidebar-item-delete" data-delete="${m.id}" title="Eliminar">🗑</button>
+        </div>`;
     }).join('');
 
-    // Click handlers
     list.querySelectorAll('.sidebar-item').forEach(item => {
         item.addEventListener('click', (e) => {
             if (e.target.closest('.sidebar-item-delete')) return;
-            const id = item.dataset.id;
-            if (id !== currentManualId) {
-                loadManual(id);
-                renderSections();
-                renderSidebar();
-                closeSidebar();
+            if (item.dataset.id !== currentManualId) {
+                loadManual(item.dataset.id); renderSections(); renderSidebar(); closeSidebar();
             }
         });
     });
     list.querySelectorAll('.sidebar-item-delete').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            requestDeleteManual(btn.dataset.delete);
-        });
+        btn.addEventListener('click', (e) => { e.stopPropagation(); requestDeleteManual(btn.dataset.delete); });
     });
 }
 
 // ========== MANUAL CRUD ==========
-function createNewManual(switchTo) {
+function createNewManual(docType, switchTo) {
+    const type = DOC_TYPES[docType] || DOC_TYPES.manual;
     const manual = {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        title: 'Manual de Usuario',
+        title: type.defaultTitle,
+        docType: docType,
         sections: [],
         createdAt: Date.now(),
         updatedAt: Date.now()
     };
     manuals.push(manual);
-    if (switchTo) {
-        loadManual(manual.id);
-        renderSections();
-    }
-    saveAll();
-    renderSidebar();
-    if (switchTo) toast('Nuevo manual creado');
+    if (switchTo) { loadManual(manual.id); renderSections(); }
+    saveAll(); renderSidebar();
+    if (switchTo) toast('Nuevo documento creado');
 }
 
 function loadManual(id) {
+    quillInstances = {};
     currentManualId = id;
     const manual = getCurrentManual();
     if (manual) {
         docTitle.value = manual.title;
+        updateDocTypeBadge();
     }
     localStorage.setItem(CURRENT_KEY, id);
 }
 
-function getCurrentManual() {
-    return manuals.find(m => m.id === currentManualId);
-}
+function getCurrentManual() { return manuals.find(m => m.id === currentManualId); }
+function getCurrentSections() { const m = getCurrentManual(); return m ? m.sections : []; }
 
-function getCurrentSections() {
+function updateDocTypeBadge() {
     const manual = getCurrentManual();
-    return manual ? manual.sections : [];
+    const badge = $('#docTypeBadge');
+    if (manual && DOC_TYPES[manual.docType]) {
+        const type = DOC_TYPES[manual.docType];
+        badge.textContent = type.label;
+        badge.className = `doc-type-badge ${manual.docType}`;
+    } else {
+        badge.textContent = '';
+        badge.className = 'doc-type-badge';
+    }
 }
 
 function requestDeleteManual(id) {
-    const manual = manuals.find(m => m.id === id);
-    if (!manual) return;
+    const m = manuals.find(m => m.id === id);
+    if (!m) return;
     deleteTargetId = id;
-    $('#deleteModalText').textContent = `¿Estás seguro de que querés eliminar "${manual.title}"?`;
+    $('#deleteModalText').textContent = `¿Eliminar "${m.title}"?`;
     showModal('deleteModal');
 }
 
 function confirmDeleteManual() {
     if (!deleteTargetId) return;
     manuals = manuals.filter(m => m.id !== deleteTargetId);
-    if (manuals.length === 0) createNewManual(false);
-    if (currentManualId === deleteTargetId) {
-        loadManual(manuals[0].id);
-        renderSections();
-    }
+    if (manuals.length === 0) createNewManual('manual', false);
+    if (currentManualId === deleteTargetId) { loadManual(manuals[0].id); renderSections(); }
     deleteTargetId = null;
-    saveAll();
-    renderSidebar();
-    hideModal('deleteModal');
-    toast('Manual eliminado');
+    saveAll(); renderSidebar(); hideModal('deleteModal'); toast('Documento eliminado');
+}
+
+// ========== TEMPLATE (per doc type) ==========
+function getDefaultTemplate() {
+    return { logo: null, companyName: '', subtitle: '', footerText: '' };
+}
+
+function getTemplateForCurrent() {
+    const manual = getCurrentManual();
+    const type = manual ? manual.docType : 'manual';
+    if (!templates[type]) templates[type] = getDefaultTemplate();
+    return templates[type];
+}
+
+function loadLogo(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const tmpl = getTemplateForCurrent();
+        tmpl.logo = e.target.result;
+        $('#logoPreview').src = e.target.result;
+        $('#logoPreview').style.display = '';
+        $('#logoPlaceholder').style.display = 'none';
+        $('#removeLogo').style.display = 'flex';
+    };
+    reader.readAsDataURL(file);
+}
+
+function openTemplateModal() {
+    const tmpl = getTemplateForCurrent();
+    $('#companyName').value = tmpl.companyName || '';
+    $('#docSubtitle').value = tmpl.subtitle || '';
+    $('#footerText').value = tmpl.footerText || '';
+    if (tmpl.logo) {
+        $('#logoPreview').src = tmpl.logo;
+        $('#logoPreview').style.display = '';
+        $('#logoPlaceholder').style.display = 'none';
+        $('#removeLogo').style.display = 'flex';
+    } else {
+        $('#logoPreview').style.display = 'none';
+        $('#logoPlaceholder').style.display = '';
+        $('#removeLogo').style.display = 'none';
+    }
+    showModal('templateModal');
+}
+
+function saveTemplate() {
+    const tmpl = getTemplateForCurrent();
+    tmpl.companyName = $('#companyName').value.trim();
+    tmpl.subtitle = $('#docSubtitle').value.trim();
+    tmpl.footerText = $('#footerText').value.trim();
+    localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+    hideModal('templateModal');
+    toast('Template guardado para este tipo de documento');
 }
 
 // ========== SECTIONS CRUD ==========
@@ -220,26 +255,24 @@ function addSection() {
     if (!manual) return;
     manual.sections.push({
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        title: '', image: null, imageType: null, context: '', generated: ''
+        title: '', image: null, imageType: null, html: '', text: ''
     });
     manual.updatedAt = Date.now();
-    saveAll();
-    renderSections();
-    renderSidebar();
+    saveAll(); renderSections(); renderSidebar();
     setTimeout(() => {
         const cards = sectionsContainer.querySelectorAll('.section-card');
         if (cards.length) cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 50);
+    }, 100);
 }
 
 function removeSection(idx) {
     const manual = getCurrentManual();
     if (!manual) return;
+    const editorId = `editor-${manual.sections[idx].id}`;
+    delete quillInstances[editorId];
     manual.sections.splice(idx, 1);
     manual.updatedAt = Date.now();
-    saveAll();
-    renderSections();
-    renderSidebar();
+    saveAll(); renderSections(); renderSidebar();
 }
 
 function moveSection(idx, dir) {
@@ -248,24 +281,25 @@ function moveSection(idx, dir) {
     if (newIdx < 0 || newIdx >= sections.length) return;
     [sections[idx], sections[newIdx]] = [sections[newIdx], sections[idx]];
     getCurrentManual().updatedAt = Date.now();
-    saveAll();
-    renderSections();
+    quillInstances = {};
+    saveAll(); renderSections();
 }
 
 // ========== RENDER SECTIONS ==========
 function renderSections() {
+    quillInstances = {};
     const sections = getCurrentSections();
-    const fragment = document.createDocumentFragment();
+    sectionsContainer.querySelectorAll('.section-card').forEach(c => c.remove());
 
     if (sections.length === 0) {
         emptyState.style.display = '';
     } else {
         emptyState.style.display = 'none';
-        sections.forEach((s, i) => fragment.appendChild(createSectionCard(s, i)));
+        sections.forEach((s, i) => {
+            sectionsContainer.appendChild(createSectionCard(s, i));
+            initQuill(s, i);
+        });
     }
-
-    sectionsContainer.querySelectorAll('.section-card').forEach(c => c.remove());
-    sectionsContainer.appendChild(fragment);
     sectionCount.textContent = sections.length + (sections.length === 1 ? ' sección' : ' secciones');
 }
 
@@ -274,6 +308,7 @@ function createSectionCard(section, idx) {
     card.className = 'section-card';
     card.draggable = true;
     card.dataset.idx = idx;
+    const editorId = `editor-${section.id}`;
 
     card.innerHTML = `
         <div class="section-header">
@@ -290,8 +325,8 @@ function createSectionCard(section, idx) {
         <div class="section-body">
             <div class="section-left">
                 <label class="context-label">Título de la sección</label>
-                <input type="text" class="section-title-input" placeholder="Ej: Inicio de sesión" data-idx="${idx}" value="${escapeAttr(section.title)}">
-                <div class="image-drop-zone ${section.image ? 'has-image' : ''}" data-idx="${idx}">
+                <input type="text" class="section-title-input" placeholder="Ej: Inicio de sesión" value="${escapeAttr(section.title)}">
+                <div class="image-drop-zone ${section.image ? 'has-image' : ''}">
                     ${section.image
                         ? `<img src="${section.image}" alt="Captura"><button class="remove-image" title="Quitar imagen">✕</button>`
                         : `<span class="placeholder-icon">🖼</span><span class="placeholder-text">Arrastrá una imagen aquí,<br>hacé clic, o pegá con Ctrl+V</span>`
@@ -299,10 +334,10 @@ function createSectionCard(section, idx) {
                 </div>
             </div>
             <div class="section-right">
-                <div class="generated-label">
-                    <label class="context-label">Texto de la sección</label>
+                <label class="context-label">Texto de la sección</label>
+                <div class="editor-wrapper">
+                    <div id="${editorId}"></div>
                 </div>
-                <textarea class="generated-text" placeholder="Pegá acá el texto generado o escribí manualmente el contenido de esta sección del manual." data-idx="${idx}">${section.generated}</textarea>
             </div>
         </div>
     `;
@@ -318,12 +353,10 @@ function createSectionCard(section, idx) {
     if (removeBtn) {
         removeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            const sections = getCurrentSections();
-            sections[idx].image = null;
-            sections[idx].imageType = null;
+            getCurrentSections()[idx].image = null;
+            getCurrentSections()[idx].imageType = null;
             getCurrentManual().updatedAt = Date.now();
-            saveAll();
-            renderSections();
+            saveAll(); renderSections();
         });
     }
 
@@ -331,18 +364,6 @@ function createSectionCard(section, idx) {
         getCurrentSections()[idx].title = e.target.value;
         getCurrentManual().updatedAt = Date.now();
         saveAll();
-    });
-
-    card.querySelector('.generated-text').addEventListener('input', (e) => {
-        getCurrentSections()[idx].generated = e.target.value;
-        getCurrentManual().updatedAt = Date.now();
-        saveAll();
-    });
-
-    dropZone.addEventListener('paste', (e) => {
-        for (const item of e.clipboardData.items) {
-            if (item.type.startsWith('image/')) { e.preventDefault(); handleImageFile(item.getAsFile(), idx); break; }
-        }
     });
 
     // Drag reorder
@@ -363,6 +384,50 @@ function createSectionCard(section, idx) {
     });
 
     return card;
+}
+
+// ========== QUILL EDITOR ==========
+function initQuill(section, idx) {
+    const editorId = `editor-${section.id}`;
+    const container = document.getElementById(editorId);
+    if (!container) return;
+
+    const quill = new Quill(container, {
+        theme: 'snow',
+        placeholder: 'Escribí o pegá el texto de esta sección...',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                [{ 'align': [] }],
+                ['clean']
+            ]
+        }
+    });
+
+    // Load existing content
+    if (section.html) {
+        quill.root.innerHTML = section.html;
+    }
+
+    // Save on change (debounced)
+    let saveTimer;
+    quill.on('text-change', () => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+            const sections = getCurrentSections();
+            if (sections[idx]) {
+                sections[idx].html = quill.root.innerHTML;
+                sections[idx].text = quill.getText();
+                getCurrentManual().updatedAt = Date.now();
+                saveAll();
+            }
+        }, 500);
+    });
+
+    quillInstances[editorId] = quill;
 }
 
 // ========== IMAGE HANDLING ==========
@@ -396,41 +461,6 @@ function handleImageFile(file, idx) {
     reader.readAsDataURL(file);
 }
 
-// ========== TEMPLATE ==========
-function loadLogo(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        templateConfig.logo = e.target.result;
-        $('#logoPreview').src = e.target.result;
-        $('#logoPreview').style.display = '';
-        $('#logoPlaceholder').style.display = 'none';
-        $('#removeLogo').style.display = 'flex';
-    };
-    reader.readAsDataURL(file);
-}
-
-function openTemplateModal() {
-    $('#companyName').value = templateConfig.companyName;
-    $('#docSubtitle').value = templateConfig.subtitle;
-    $('#footerText').value = templateConfig.footerText;
-    if (templateConfig.logo) {
-        $('#logoPreview').src = templateConfig.logo;
-        $('#logoPreview').style.display = '';
-        $('#logoPlaceholder').style.display = 'none';
-        $('#removeLogo').style.display = 'flex';
-    }
-    showModal('templateModal');
-}
-
-function saveTemplate() {
-    templateConfig.companyName = $('#companyName').value.trim();
-    templateConfig.subtitle = $('#docSubtitle').value.trim();
-    templateConfig.footerText = $('#footerText').value.trim();
-    localStorage.setItem(TEMPLATE_KEY, JSON.stringify(templateConfig));
-    hideModal('templateModal');
-    toast('Template guardado');
-}
-
 // ========== WORD EXPORT ==========
 async function exportToWord() {
     const sections = getCurrentSections();
@@ -445,20 +475,21 @@ async function exportToWord() {
                 BorderStyle, PageBreak, Bookmark, InternalHyperlink,
                 TableOfContents } = window.docx;
 
+        const tmpl = getTemplateForCurrent();
         const headerChildren = [];
-        if (templateConfig.logo) {
+        if (tmpl.logo) {
             try {
-                const logoData = await dataUrlToArrayBuffer(templateConfig.logo);
+                const logoData = await dataUrlToArrayBuffer(tmpl.logo);
                 headerChildren.push(new Paragraph({ children: [new ImageRun({ data: logoData, transformation: { width: 120, height: 40 }, type: 'png' })], alignment: AlignmentType.LEFT }));
             } catch (e) { console.warn('Logo error:', e); }
         }
-        if (templateConfig.companyName) {
-            headerChildren.push(new Paragraph({ children: [new TextRun({ text: templateConfig.companyName, bold: true, size: 18, color: '666666' })], alignment: AlignmentType.LEFT }));
+        if (tmpl.companyName) {
+            headerChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.companyName, bold: true, size: 18, color: '666666' })], alignment: AlignmentType.LEFT }));
         }
 
         const footerChildren = [];
-        if (templateConfig.footerText) {
-            footerChildren.push(new Paragraph({ children: [new TextRun({ text: templateConfig.footerText, size: 16, color: '999999', italics: true })], alignment: AlignmentType.LEFT }));
+        if (tmpl.footerText) {
+            footerChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.footerText, size: 16, color: '999999', italics: true })], alignment: AlignmentType.LEFT }));
         }
         footerChildren.push(new Paragraph({
             children: [
@@ -473,9 +504,9 @@ async function exportToWord() {
 
         // Title page
         docChildren.push(new Paragraph({ spacing: { before: 3000 } }));
-        docChildren.push(new Paragraph({ children: [new TextRun({ text: docTitle.value || 'Manual de Usuario', bold: true, size: 56, color: '2B2B7B' })], alignment: AlignmentType.CENTER }));
-        if (templateConfig.subtitle) docChildren.push(new Paragraph({ children: [new TextRun({ text: templateConfig.subtitle, size: 28, color: '666666' })], alignment: AlignmentType.CENTER, spacing: { before: 200 } }));
-        if (templateConfig.companyName) docChildren.push(new Paragraph({ children: [new TextRun({ text: templateConfig.companyName, size: 24, color: '999999' })], alignment: AlignmentType.CENTER, spacing: { before: 400 } }));
+        docChildren.push(new Paragraph({ children: [new TextRun({ text: docTitle.value || 'Documento', bold: true, size: 56, color: '2B2B7B' })], alignment: AlignmentType.CENTER }));
+        if (tmpl.subtitle) docChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.subtitle, size: 28, color: '666666' })], alignment: AlignmentType.CENTER, spacing: { before: 200 } }));
+        if (tmpl.companyName) docChildren.push(new Paragraph({ children: [new TextRun({ text: tmpl.companyName, size: 24, color: '999999' })], alignment: AlignmentType.CENTER, spacing: { before: 400 } }));
         docChildren.push(new Paragraph({ children: [new TextRun({ text: new Date().toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric' }), size: 20, color: '999999' })], alignment: AlignmentType.CENTER, spacing: { before: 200 } }));
         docChildren.push(new Paragraph({ children: [new PageBreak()] }));
 
@@ -504,11 +535,14 @@ async function exportToWord() {
                 } catch (e) { console.warn('Image error section', i, e); }
             }
 
-            if (s.generated) {
-                for (const line of s.generated.split('\n')) {
-                    docChildren.push(new Paragraph({ children: [new TextRun({ text: line, size: 22, font: 'Calibri' })], spacing: { before: 60, after: 60 } }));
-                }
+            // Parse HTML to docx paragraphs
+            const textContent = s.text || '';
+            if (textContent.trim()) {
+                const htmlContent = s.html || '';
+                const paragraphs = htmlToDocxParagraphs(htmlContent, TextRun, Paragraph);
+                docChildren.push(...paragraphs);
             }
+
             if (i < sections.length - 1) docChildren.push(new Paragraph({ children: [new PageBreak()] }));
         }
 
@@ -519,7 +553,7 @@ async function exportToWord() {
         });
 
         const blob = await Packer.toBlob(doc);
-        const fileName = (docTitle.value || 'manual').replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ\s-]/g, '').replace(/\s+/g, '_');
+        const fileName = (docTitle.value || 'documento').replace(/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ\s-]/g, '').replace(/\s+/g, '_');
         window.saveAs(blob, `${fileName}.docx`);
         toast('Documento Word descargado');
     } catch (e) {
@@ -528,17 +562,90 @@ async function exportToWord() {
     }
 }
 
-// ========== PREVIEW & EXPORT ==========
+// Convert Quill HTML to docx paragraphs
+function htmlToDocxParagraphs(html, TextRun, Paragraph) {
+    const paragraphs = [];
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+
+    const blocks = tmp.querySelectorAll('p, h1, h2, h3, li, div');
+    if (blocks.length === 0) {
+        // Fallback: plain text
+        const text = tmp.textContent || '';
+        for (const line of text.split('\n')) {
+            if (line.trim()) paragraphs.push(new Paragraph({ children: [new TextRun({ text: line, size: 22, font: 'Calibri' })], spacing: { before: 60, after: 60 } }));
+        }
+        return paragraphs;
+    }
+
+    blocks.forEach(block => {
+        const runs = [];
+        processNode(block, runs, TextRun);
+        if (runs.length === 0) return;
+
+        const opts = { children: runs, spacing: { before: 60, after: 60 } };
+        const tag = block.tagName.toLowerCase();
+        if (tag === 'h1') { opts.spacing = { before: 200, after: 100 }; }
+        if (tag === 'h2') { opts.spacing = { before: 160, after: 80 }; }
+        if (tag === 'h3') { opts.spacing = { before: 120, after: 60 }; }
+        if (tag === 'li') {
+            const parent = block.parentElement;
+            if (parent && parent.tagName === 'OL') {
+                opts.numbering = { reference: 'default-numbering', level: 0 };
+            } else {
+                opts.bullet = { level: 0 };
+            }
+        }
+
+        paragraphs.push(new Paragraph(opts));
+    });
+
+    return paragraphs.length > 0 ? paragraphs : [new Paragraph({ children: [new TextRun({ text: tmp.textContent || '', size: 22, font: 'Calibri' })], spacing: { before: 60, after: 60 } })];
+}
+
+function processNode(node, runs, TextRun) {
+    node.childNodes.forEach(child => {
+        if (child.nodeType === 3) { // Text node
+            const text = child.textContent;
+            if (text) {
+                const styles = getInheritedStyles(child);
+                runs.push(new TextRun({ text, size: styles.size || 22, font: 'Calibri', bold: styles.bold, italics: styles.italic, underline: styles.underline ? {} : undefined, strike: styles.strike }));
+            }
+        } else if (child.nodeType === 1) { // Element
+            processNode(child, runs, TextRun);
+        }
+    });
+}
+
+function getInheritedStyles(node) {
+    const styles = { bold: false, italic: false, underline: false, strike: false, size: 22 };
+    let el = node.parentElement;
+    while (el) {
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'strong' || tag === 'b') styles.bold = true;
+        if (tag === 'em' || tag === 'i') styles.italic = true;
+        if (tag === 'u') styles.underline = true;
+        if (tag === 's' || tag === 'del' || tag === 'strike') styles.strike = true;
+        if (tag === 'h1') { styles.bold = true; styles.size = 32; }
+        if (tag === 'h2') { styles.bold = true; styles.size = 28; }
+        if (tag === 'h3') { styles.bold = true; styles.size = 24; }
+        if (el.classList.contains('ql-editor') || el.classList.contains('section-right')) break;
+        el = el.parentElement;
+    }
+    return styles;
+}
+
+// ========== PREVIEW & MARKDOWN ==========
 function showPreview() {
     const sections = getCurrentSections();
     if (sections.length === 0) { toast('Agregá secciones primero'); return; }
     const content = $('#previewContent');
-    let html = `<h1>${escapeHtml(docTitle.value || 'Manual de Usuario')}</h1>`;
+    let html = `<h1>${escapeHtml(docTitle.value || 'Documento')}</h1>`;
     sections.forEach((s, i) => {
         const title = s.title || `Sección ${i + 1}`;
         html += `<div class="preview-section"><h2>${i + 1}. ${escapeHtml(title)}</h2>`;
         if (s.image) html += `<img src="${s.image}" alt="${escapeHtml(title)}">`;
-        html += s.generated ? `<div class="preview-text">${escapeHtml(s.generated)}</div>` : `<div class="preview-text" style="color:var(--text-muted)">(Sin texto todavía)</div>`;
+        html += s.html ? `<div class="preview-text">${s.html}</div>` : `<div class="preview-text" style="color:var(--text-muted)">(Sin texto todavía)</div>`;
         html += `</div>`;
     });
     content.innerHTML = html;
@@ -547,13 +654,13 @@ function showPreview() {
 
 function copyMarkdown() {
     const sections = getCurrentSections();
-    let md = `# ${docTitle.value || 'Manual de Usuario'}\n\n`;
+    let md = `# ${docTitle.value || 'Documento'}\n\n`;
     sections.forEach((s, i) => {
         md += `## ${i + 1}. ${s.title || `Sección ${i + 1}`}\n\n`;
-        if (s.generated) md += s.generated + '\n\n';
+        if (s.text) md += s.text + '\n\n';
         md += '---\n\n';
     });
-    navigator.clipboard.writeText(md).then(() => toast('Markdown copiado al portapapeles'));
+    navigator.clipboard.writeText(md).then(() => toast('Markdown copiado'));
 }
 
 // ========== PERSISTENCE ==========
@@ -563,7 +670,7 @@ function saveAll() {
         localStorage.setItem(CURRENT_KEY, currentManualId);
     } catch (e) {
         console.warn('localStorage full');
-        toast('Almacenamiento lleno. Exportá y eliminá manuales.');
+        toast('Almacenamiento lleno. Exportá y eliminá documentos.');
     }
 }
 
@@ -572,64 +679,54 @@ function loadState() {
         const saved = localStorage.getItem(MANUALS_KEY);
         if (saved) manuals = JSON.parse(saved);
 
-        // Migrate from old format
+        // Migrate old format
         if (manuals.length === 0) {
-            const oldSections = localStorage.getItem('docgen_sections');
+            const old = localStorage.getItem('docgen_sections');
             const oldTitle = localStorage.getItem('docgen_title');
-            if (oldSections) {
-                const sections = JSON.parse(oldSections);
+            if (old) {
+                const sections = JSON.parse(old);
                 if (sections.length > 0) {
-                    manuals.push({
-                        id: 'migrated',
-                        title: oldTitle || 'Manual de Usuario',
-                        sections: sections,
-                        createdAt: Date.now(),
-                        updatedAt: Date.now()
+                    // Convert old generated field to html/text
+                    sections.forEach(s => {
+                        if (s.generated && !s.html) {
+                            s.html = `<p>${escapeHtml(s.generated)}</p>`;
+                            s.text = s.generated;
+                        }
                     });
+                    manuals.push({ id: 'migrated', title: oldTitle || 'Manual de Usuario', docType: 'manual', sections, createdAt: Date.now(), updatedAt: Date.now() });
                     localStorage.removeItem('docgen_sections');
                     localStorage.removeItem('docgen_title');
                 }
             }
         }
 
+        // Migrate manuals without docType
+        manuals.forEach(m => { if (!m.docType) m.docType = 'manual'; });
+
         currentManualId = localStorage.getItem(CURRENT_KEY);
-        const tmpl = localStorage.getItem(TEMPLATE_KEY);
-        if (tmpl) templateConfig = JSON.parse(tmpl);
+        const tmpl = localStorage.getItem(TEMPLATES_KEY);
+        if (tmpl) templates = JSON.parse(tmpl);
+        // Migrate old single template
+        const oldTmpl = localStorage.getItem('docgen_template');
+        if (oldTmpl && !templates.manual) {
+            templates.manual = JSON.parse(oldTmpl);
+            localStorage.removeItem('docgen_template');
+            localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+        }
     } catch (e) {
         manuals = [];
     }
 }
 
-// ========== MODALS & UTILS ==========
+// ========== UTILS ==========
 function showModal(id) { document.getElementById(id).classList.add('active'); }
 function hideModal(id) { document.getElementById(id).classList.remove('active'); }
-
-function toast(msg) {
-    const t = $('#toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-function escapeHtml(str) {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-}
-function escapeAttr(str) {
-    return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
+function escapeHtml(str) { return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'); }
+function escapeAttr(str) { return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function dataUrlToArrayBuffer(dataUrl) {
-    return new Promise((resolve) => {
-        const binary = atob(dataUrl.split(',')[1]);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-        resolve(bytes.buffer);
-    });
+    return new Promise((resolve) => { const b = atob(dataUrl.split(',')[1]); const u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); resolve(u.buffer); });
 }
 function getImageDimensions(dataUrl) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-        img.onerror = () => resolve({ width: 400, height: 300 });
-        img.src = dataUrl;
-    });
+    return new Promise((resolve) => { const img = new Image(); img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight }); img.onerror = () => resolve({ width: 400, height: 300 }); img.src = dataUrl; });
 }

@@ -9,7 +9,9 @@
     <link rel="icon" href="icon-192.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icon-192.svg">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/docx@8.2.4/build/index.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 </head>
@@ -26,22 +28,43 @@
             </div>
             <button class="btn-icon sidebar-close" id="sidebarClose" title="Cerrar sidebar">✕</button>
         </div>
-        <button class="sidebar-new-btn" id="newManualBtn">+ Nuevo manual</button>
-        <div class="sidebar-label">Tus manuales</div>
-        <div class="sidebar-list" id="sidebarList">
-            <!-- Manual items rendered by JS -->
-        </div>
+        <button class="sidebar-new-btn" id="newManualBtn">+ Nuevo documento</button>
+        <div class="sidebar-label">Tus documentos</div>
+        <div class="sidebar-list" id="sidebarList"></div>
     </aside>
 
-    <!-- Sidebar overlay (mobile) -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- New Document Type Modal -->
+    <div class="modal-overlay" id="newDocModal">
+        <div class="modal">
+            <div class="modal-icon">📝</div>
+            <h2>Nuevo documento</h2>
+            <p>Seleccioná el tipo de documento que vas a crear.</p>
+            <div class="doc-type-cards">
+                <div class="doc-type-card" data-type="manual">
+                    <div class="doc-type-icon">📘</div>
+                    <div class="doc-type-name">Manual de Uso</div>
+                    <div class="doc-type-desc">Instrucciones paso a paso con capturas de pantalla para el usuario final.</div>
+                </div>
+                <div class="doc-type-card" data-type="desarrollo">
+                    <div class="doc-type-icon">⚙️</div>
+                    <div class="doc-type-name">Doc. de Desarrollo</div>
+                    <div class="doc-type-desc">Documentación técnica de arquitectura, APIs, flujos y componentes.</div>
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top:16px;">
+                <button class="btn btn-ghost" id="closeNewDocModal">Cancelar</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Template Config Modal -->
     <div class="modal-overlay" id="templateModal">
         <div class="modal modal-template">
             <div class="modal-icon">📄</div>
             <h2>Configurar Template</h2>
-            <p>Configurá el encabezado y pie de página del documento Word.</p>
+            <p>Estos datos se guardan y se reutilizan en todos los documentos del mismo tipo.</p>
             <div class="form-group">
                 <label>Logo de la empresa</label>
                 <div class="logo-upload" id="logoUpload">
@@ -62,14 +85,6 @@
                 <label for="footerText">Texto del pie de página</label>
                 <input type="text" id="footerText" placeholder="Ej: Confidencial - Uso interno">
             </div>
-            <div class="form-group">
-                <label>Plantilla Word (opcional)</label>
-                <div class="template-upload-zone" id="templateUploadZone">
-                    <span id="templateFileName">Subí un .docx como referencia de estilo</span>
-                </div>
-                <input type="file" id="templateFileInput" accept=".docx" style="display:none;">
-                <p class="form-hint">Se usará el encabezado y pie de página de la plantilla</p>
-            </div>
             <div class="modal-actions">
                 <button class="btn btn-primary" id="saveTemplate">Guardar</button>
                 <button class="btn btn-ghost" id="closeTemplateModal">Cancelar</button>
@@ -81,8 +96,8 @@
     <div class="modal-overlay" id="deleteModal">
         <div class="modal">
             <div class="modal-icon">🗑</div>
-            <h2>Eliminar manual</h2>
-            <p id="deleteModalText">¿Estás seguro de que querés eliminar este manual?</p>
+            <h2>Eliminar documento</h2>
+            <p id="deleteModalText">¿Estás seguro?</p>
             <div class="modal-actions">
                 <button class="btn btn-danger" id="confirmDelete">Eliminar</button>
                 <button class="btn btn-ghost" id="cancelDelete">Cancelar</button>
@@ -116,6 +131,7 @@
                 </svg>
                 <span>DocGen</span>
             </div>
+            <span class="doc-type-badge" id="docTypeBadge"></span>
         </div>
         <div class="header-center">
             <input type="text" class="doc-title-input" id="docTitle" value="Manual de Usuario" placeholder="Título del documento">
@@ -139,12 +155,10 @@
                 <div class="empty-icon">📸</div>
                 <h3>Sin secciones todavía</h3>
                 <p>Hacé clic en "Nueva sección" o pegá una imagen con <kbd>Ctrl+V</kbd> para comenzar.</p>
-                <p style="margin-top:12px;font-size:0.85rem;">Armá las secciones con imágenes y texto, después exportá a Word.</p>
             </div>
         </div>
     </main>
 
-    <!-- Toast -->
     <div class="toast" id="toast"></div>
 
     <script src="app.js"></script>
